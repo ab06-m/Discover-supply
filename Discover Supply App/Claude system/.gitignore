@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+dist
+build
+.env
+.env.local
+.env*.local
+.DS_Store
+*.log
+.vercel
+.turbo
+/ios/App/Pods
+/ios/App/App/public
+/android/app/src/main/assets/public
+/android/.gradle

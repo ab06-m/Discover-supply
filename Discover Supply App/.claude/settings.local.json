@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -rf \"C:/Users/abner/OneDrive/Documents/Discover Supply/Claude system\")",
+      "Read(//c/Users/abner/OneDrive/Documents/Discover Supply/**)"
+    ]
+  }
+}

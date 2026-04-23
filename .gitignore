@@ -1,0 +1,12 @@
+kyte_images/
+kyte_images_ai_up/
+kyte_images_optimized/
+scratch/
+node_modules/
+.DS_Store
+*.log
+.gemini/
+brain/
+implementation_plan.md
+task.md
+walkthrough.md

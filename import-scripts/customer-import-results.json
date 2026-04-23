@@ -1,0 +1,847 @@
+{
+  "success": [
+    {
+      "name": "Vitoria Meat Market Medford",
+      "id": "47255000000120200"
+    },
+    {
+      "name": "Acougue Do Joao",
+      "id": "47255000000117293"
+    },
+    {
+      "name": "America’s Food Basket",
+      "id": "47255000000115710"
+    },
+    {
+      "name": "Amigos Convinience Store",
+      "id": "47255000000116459"
+    },
+    {
+      "name": "Beauty Route Dina",
+      "id": "47255000000118401"
+    },
+    {
+      "name": "Beef Market",
+      "id": "47255000000119338"
+    },
+    {
+      "name": "Belissima Cosmectics",
+      "id": "47255000000120207"
+    },
+    {
+      "name": "Big Boi Meat Market - Framingham",
+      "id": "47255000000118408"
+    },
+    {
+      "name": "Big Boi Meat Market - Worcester",
+      "id": "47255000000119345"
+    },
+    {
+      "name": "Big Boi Meat Market - Shrewsbury",
+      "id": "47255000000117300"
+    },
+    {
+      "name": "Big Mania Meat Market",
+      "id": "47255000000120214"
+    },
+    {
+      "name": "Brasileirinho Market",
+      "id": "47255000000118415"
+    },
+    {
+      "name": "Brazil For You - Stoughton",
+      "id": "47255000000119352"
+    },
+    {
+      "name": "Brazil Store",
+      "id": "47255000000120221"
+    },
+    {
+      "name": "Brazilian Fashion",
+      "id": "47255000000115717"
+    },
+    {
+      "name": "Brazilian Hispanic Convenience Store",
+      "id": "47255000000116466"
+    },
+    {
+      "name": "Brazilian Point",
+      "id": "47255000000115724"
+    },
+    {
+      "name": "Brazuca Convenience Store",
+      "id": "47255000000120228"
+    },
+    {
+      "name": "Brazuka Store",
+      "id": "47255000000118422"
+    },
+    {
+      "name": "Brother’s Market - Marlborough- Enis/Silvana",
+      "id": "47255000000119359"
+    },
+    {
+      "name": "Brother’s Market - Framingham",
+      "id": "47255000000115731"
+    },
+    {
+      "name": "Casa Brasil",
+      "id": "47255000000118429"
+    },
+    {
+      "name": "Cape Mart",
+      "id": "47255000000117307"
+    },
+    {
+      "name": "Casa Nova Butcher Shop & Cafe",
+      "id": "47255000000115738"
+    },
+    {
+      "name": "Central Street Market",
+      "id": "47255000000120235"
+    },
+    {
+      "name": "Central Meat Market (Alex)",
+      "id": "47255000000119366"
+    },
+    {
+      "name": "Central Woburn Meat Market (Orlando)",
+      "id": "47255000000120242"
+    },
+    {
+      "name": "Cod & Olive Market",
+      "id": "47255000000119373"
+    },
+    {
+      "name": "Cornerstone Landscape Supply",
+      "id": "47255000000115745"
+    },
+    {
+      "name": "Cornerstone Landscape Supply Inc",
+      "id": "47255000000118436"
+    },
+    {
+      "name": "Cowboy Supermarket",
+      "id": "47255000000115752"
+    },
+    {
+      "name": "Delana’s Bakery",
+      "id": "47255000000119380"
+    },
+    {
+      "name": "Discover Brasil Wholesale",
+      "id": "47255000000115759"
+    },
+    {
+      "name": "Do Brazil Market",
+      "id": "47255000000118443"
+    },
+    {
+      "name": "Dominga’s Hair Salon",
+      "id": "47255000000119387"
+    },
+    {
+      "name": "El Valle De La Sultana",
+      "id": "47255000000117314"
+    },
+    {
+      "name": "El Valle De La Sultana - Somerville",
+      "id": "47255000000116473"
+    },
+    {
+      "name": "Emporio Meat Market",
+      "id": "47255000000118450"
+    },
+    {
+      "name": "Emporium Brazil Store",
+      "id": "47255000000119394"
+    },
+    {
+      "name": "Family Meat Market",
+      "id": "47255000000120249"
+    },
+    {
+      "name": "Casa Brasil Worcester",
+      "id": "47255000000118457"
+    },
+    {
+      "name": "Free Boi Market",
+      "id": "47255000000117321"
+    },
+    {
+      "name": "Fresh Beef Market",
+      "id": "47255000000115766"
+    },
+    {
+      "name": "Gol Supermarket - Hyannis",
+      "id": "47255000000120256"
+    },
+    {
+      "name": "Gol Supermarket - Falmouth",
+      "id": "47255000000117328"
+    },
+    {
+      "name": "GV Brazilian Store",
+      "id": "47255000000120263"
+    },
+    {
+      "name": "Imperio Meat Market",
+      "id": "47255000000115773"
+    },
+    {
+      "name": "Intercontinental Neves",
+      "id": "47255000000116480"
+    },
+    {
+      "name": "JC Supermarket",
+      "id": "47255000000118464"
+    },
+    {
+      "name": "JS Market - Peabody",
+      "id": "47255000000119401"
+    },
+    {
+      "name": "Latino Express",
+      "id": "47255000000120270"
+    },
+    {
+      "name": "Ligafrica Music",
+      "id": "47255000000117335"
+    },
+    {
+      "name": "Luau Brazilian Market",
+      "id": "47255000000120277"
+    },
+    {
+      "name": "Master Cut Meat Market",
+      "id": "47255000000116487"
+    },
+    {
+      "name": "MG Express",
+      "id": "47255000000117342"
+    },
+    {
+      "name": "Michelle’s Market",
+      "id": "47255000000119408"
+    },
+    {
+      "name": "Minas Imporio",
+      "id": "47255000000117349"
+    },
+    {
+      "name": "Minas Market - Worcester",
+      "id": "47255000000116494"
+    },
+    {
+      "name": "Sweet Brazil - Framingham",
+      "id": "47255000000117356"
+    },
+    {
+      "name": "Mineirão Market - Lynn",
+      "id": "47255000000115780"
+    },
+    {
+      "name": "Mineirão Market - Marlborough",
+      "id": "47255000000117363"
+    },
+    {
+      "name": "Mineirão Market - Malden II",
+      "id": "47255000000115787"
+    },
+    {
+      "name": "Mineirão One Stop Market",
+      "id": "47255000000118471"
+    },
+    {
+      "name": "Mundo Evangelico",
+      "id": "47255000000117370"
+    },
+    {
+      "name": "Nilo’s Market Quincy",
+      "id": "47255000000115794"
+    },
+    {
+      "name": "North Star Distributor",
+      "id": "47255000000120284"
+    },
+    {
+      "name": "Norwood Golden Bull",
+      "id": "47255000000117377"
+    },
+    {
+      "name": "Nosso Sabor Brazilian Market",
+      "id": "47255000000115801"
+    },
+    {
+      "name": "Olinda’s Beauty Salon",
+      "id": "47255000000120291"
+    },
+    {
+      "name": "Oliveira Deli Market Brighton",
+      "id": "47255000000118478"
+    },
+    {
+      "name": "Oliveira Deli Market - Lowell",
+      "id": "47255000000120298"
+    },
+    {
+      "name": "Ponto Um Market",
+      "id": "47255000000118485"
+    },
+    {
+      "name": "Queiroz Meat Market",
+      "id": "47255000000119415"
+    },
+    {
+      "name": "Rei Da Carne Meat Market",
+      "id": "47255000000115808"
+    },
+    {
+      "name": "Seabras Food",
+      "id": "47255000000117384"
+    },
+    {
+      "name": "Sky Braz Store",
+      "id": "47255000000118492"
+    },
+    {
+      "name": "Sky Market & Butcher Shop",
+      "id": "47255000000115815"
+    },
+    {
+      "name": "Sol Brasil",
+      "id": "47255000000119422"
+    },
+    {
+      "name": "Somerville Cafe E Pastelaria",
+      "id": "47255000000117391"
+    },
+    {
+      "name": "South Shore Market",
+      "id": "47255000000120305"
+    },
+    {
+      "name": "Terra Nossa Center Market",
+      "id": "47255000000120312"
+    },
+    {
+      "name": "Terra Nossa Convinience Store",
+      "id": "47255000000119429"
+    },
+    {
+      "name": "Tesoro Supermarket",
+      "id": "47255000000117398"
+    },
+    {
+      "name": "Tri Market",
+      "id": "47255000000120319"
+    },
+    {
+      "name": "Uai Brasil",
+      "id": "47255000000118499"
+    },
+    {
+      "name": "União Meat Market",
+      "id": "47255000000120326"
+    },
+    {
+      "name": "Via Latina Brazilian Store",
+      "id": "47255000000118506"
+    },
+    {
+      "name": "Vitoria Brazilian Meat Market - Allston",
+      "id": "47255000000119436"
+    },
+    {
+      "name": "Vitoria Brazilian Meat Market - Lynn",
+      "id": "47255000000117405"
+    },
+    {
+      "name": "Vitoria Brazilian Meat Market - Peabody",
+      "id": "47255000000116501"
+    },
+    {
+      "name": "Vitoria Brazilian Meat Market - Revere",
+      "id": "47255000000115822"
+    },
+    {
+      "name": "Vitoria International Meat Market",
+      "id": "47255000000119443"
+    },
+    {
+      "name": "Vitoria Meat Market - Everett",
+      "id": "47255000000117412"
+    },
+    {
+      "name": "Vitoria Meat Market - Malden",
+      "id": "47255000000115829"
+    },
+    {
+      "name": "Vitoria Meat Market - Quincy",
+      "id": "47255000000120333"
+    },
+    {
+      "name": "Vitoria Meat Market - Hyannis",
+      "id": "47255000000116508"
+    },
+    {
+      "name": "Water Street Meat Market",
+      "id": "47255000000119450"
+    },
+    {
+      "name": "Sky Market Brazilian Store - SC",
+      "id": "47255000000117419"
+    },
+    {
+      "name": "Latinos Meat Market",
+      "id": "47255000000120340"
+    },
+    {
+      "name": "Via Brazil Market Place",
+      "id": "47255000000115836"
+    },
+    {
+      "name": "Zeilanny Beauty",
+      "id": "47255000000119457"
+    },
+    {
+      "name": "Thalita Nails",
+      "id": "47255000000120347"
+    },
+    {
+      "name": "Ferreira Market",
+      "id": "47255000000116515"
+    },
+    {
+      "name": "Vitoria Meat Market Malden II",
+      "id": "47255000000118513"
+    },
+    {
+      "name": "Oliveira Market",
+      "id": "47255000000119464"
+    },
+    {
+      "name": "Black Bull Meat Market",
+      "id": "47255000000115843"
+    },
+    {
+      "name": "Vitoria Meat Market - Taunton",
+      "id": "47255000000116522"
+    },
+    {
+      "name": "Fogaça",
+      "id": "47255000000118520"
+    },
+    {
+      "name": "Mineirão Market - Peabody",
+      "id": "47255000000117426"
+    },
+    {
+      "name": "É Do Brasil",
+      "id": "47255000000119471"
+    },
+    {
+      "name": "Bruna Queiroz",
+      "id": "47255000000115850"
+    },
+    {
+      "name": "Lisa Carneiro",
+      "id": "47255000000117433"
+    },
+    {
+      "name": "Aroma Brazil",
+      "id": "47255000000116529"
+    },
+    {
+      "name": "Monica Meat Market",
+      "id": "47255000000119478"
+    },
+    {
+      "name": "Mineirão Market Framingham",
+      "id": "47255000000120354"
+    },
+    {
+      "name": "Motas Market",
+      "id": "47255000000115857"
+    },
+    {
+      "name": "Gol Supermarket Leominster",
+      "id": "47255000000116536"
+    },
+    {
+      "name": "Big boi meat market Worcester",
+      "id": "47255000000119485"
+    },
+    {
+      "name": "BRAZIL COFFEE SHOP",
+      "id": "47255000000115864"
+    },
+    {
+      "name": "Mineirão Market Malden I",
+      "id": "47255000000116543"
+    },
+    {
+      "name": "Free Boi New Bedford",
+      "id": "47255000000119492"
+    },
+    {
+      "name": "Oliveira Deli Market Framimgham",
+      "id": "47255000000115871"
+    },
+    {
+      "name": "Pit Stop Store",
+      "id": "47255000000116550"
+    },
+    {
+      "name": "Big Boi Market - Orlando-Fl",
+      "id": "47255000000118527"
+    },
+    {
+      "name": "Brasil Remessa Hudson",
+      "id": "47255000000120361"
+    },
+    {
+      "name": "DF Grocery Dayana Santos Rodrigues",
+      "id": "47255000000115878"
+    },
+    {
+      "name": "Gol Supermarket - Sturbrige",
+      "id": "47255000000116557"
+    },
+    {
+      "name": "Latin Beauty Distributor",
+      "id": "47255000000120368"
+    },
+    {
+      "name": "Bruna Alvarenga",
+      "id": "47255000000118534"
+    },
+    {
+      "name": "Mundial Laser Afiações",
+      "id": "47255000000117440"
+    },
+    {
+      "name": "Documentos Lojas",
+      "id": "47255000000118541"
+    },
+    {
+      "name": "Imperio Brazil Grocery",
+      "id": "47255000000117447"
+    },
+    {
+      "name": "Sweet Brazil Market",
+      "id": "47255000000116564"
+    },
+    {
+      "name": "Imperio  Brazil",
+      "id": "47255000000119499"
+    },
+    {
+      "name": "Marlboro Pharmacy",
+      "id": "47255000000115885"
+    },
+    {
+      "name": "Two Brothers Market",
+      "id": "47255000000118548"
+    },
+    {
+      "name": "Kitute Brasil Market",
+      "id": "47255000000115892"
+    },
+    {
+      "name": "North Star",
+      "id": "47255000000119506"
+    },
+    {
+      "name": "Brazilian Meat Market - Haverhill",
+      "id": "47255000000116571"
+    },
+    {
+      "name": "Marleide - Salão",
+      "id": "47255000000119513"
+    },
+    {
+      "name": "Top Brazilian Meat Market",
+      "id": "47255000000118555"
+    },
+    {
+      "name": "Vitoria Meat Market - Somerville",
+      "id": "47255000000115899"
+    },
+    {
+      "name": "Vitoria Meat Market - East Boston",
+      "id": "47255000000118562"
+    },
+    {
+      "name": "Cintia Nails",
+      "id": "47255000000117454"
+    },
+    {
+      "name": "BH Market",
+      "id": "47255000000120375"
+    },
+    {
+      "name": "JB SPORTS LLC",
+      "id": "47255000000119520"
+    },
+    {
+      "name": "Local Meat Market",
+      "id": "47255000000117461"
+    },
+    {
+      "name": "Vitoria Meat Market Worcester",
+      "id": "47255000000117468"
+    },
+    {
+      "name": "Rei Do Gado",
+      "id": "47255000000120382"
+    },
+    {
+      "name": "Rei do Gado Grocery",
+      "id": "47255000000116578"
+    },
+    {
+      "name": "Karina",
+      "id": "47255000000118569"
+    },
+    {
+      "name": "Tiago",
+      "id": "47255000000117475"
+    },
+    {
+      "name": "Jack Pina",
+      "id": "47255000000115906"
+    },
+    {
+      "name": "Taste Brazil For You",
+      "id": "47255000000116585"
+    },
+    {
+      "name": "Uniao Meat Market Marlboro",
+      "id": "47255000000118576"
+    },
+    {
+      "name": "Gesiel Batista",
+      "id": "47255000000117482"
+    },
+    {
+      "name": "Vitoria Meat Market - Plymouth",
+      "id": "47255000000116592"
+    },
+    {
+      "name": "Crown Meat Market",
+      "id": "47255000000119527"
+    },
+    {
+      "name": "WASHINGTON SOUSA",
+      "id": "47255000000117489"
+    },
+    {
+      "name": "Prime Meat Market",
+      "id": "47255000000120389"
+    },
+    {
+      "name": "Gol Supermarket - Fall River",
+      "id": "47255000000118583"
+    },
+    {
+      "name": "Pastelaria Vitoria",
+      "id": "47255000000117496"
+    },
+    {
+      "name": "Vitoria Market Lynn II",
+      "id": "47255000000119534"
+    },
+    {
+      "name": "Cape Meat Market",
+      "id": "47255000000115913"
+    },
+    {
+      "name": "Ludienny Alves",
+      "id": "47255000000118590"
+    },
+    {
+      "name": "BRZ FOOD MANAGEMENT",
+      "id": "47255000000117503"
+    },
+    {
+      "name": "Karina Raposo",
+      "id": "47255000000118597"
+    },
+    {
+      "name": "Marketpluss Meat Market inc",
+      "id": "47255000000117510"
+    },
+    {
+      "name": "Marketpluss J & L Meat Market",
+      "id": "47255000000116599"
+    },
+    {
+      "name": "Brazilian Deli Meat Market",
+      "id": "47255000000120396"
+    },
+    {
+      "name": "Real Brazil Restaurant Market",
+      "id": "47255000000119541"
+    },
+    {
+      "name": "Paulo Bruno Aguiar",
+      "id": "47255000000117517"
+    },
+    {
+      "name": "Amaral’s Market - Diego",
+      "id": "47255000000118604"
+    },
+    {
+      "name": "Nilo’s Market Holbrook",
+      "id": "47255000000116606"
+    },
+    {
+      "name": "Marcia’s Hair Salon",
+      "id": "47255000000118611"
+    },
+    {
+      "name": "Golden Imports & Exports",
+      "id": "47255000000117524"
+    },
+    {
+      "name": "Texas Meat Market",
+      "id": "47255000000119548"
+    },
+    {
+      "name": "Vitoria Meat MARKET MEDFORD",
+      "id": "47255000000117531"
+    },
+    {
+      "name": "Monica Rodrigues",
+      "id": "47255000000119555"
+    },
+    {
+      "name": "Vitoria Meat Market - Burlington",
+      "id": "47255000000116613"
+    },
+    {
+      "name": "Daniela",
+      "id": "47255000000115920"
+    },
+    {
+      "name": "Milton Vieira",
+      "id": "47255000000118618"
+    },
+    {
+      "name": "Dubom Supermarket",
+      "id": "47255000000119562"
+    },
+    {
+      "name": "Mercado e Açougue Ideal",
+      "id": "47255000000115927"
+    },
+    {
+      "name": "Two Brothers Meat Market Leominster",
+      "id": "47255000000116620"
+    },
+    {
+      "name": "Cowboy Supermarket II",
+      "id": "47255000000118625"
+    },
+    {
+      "name": "flavio Candido silva",
+      "id": "47255000000117538"
+    },
+    {
+      "name": "Mini Market La Republica",
+      "id": "47255000000117545"
+    },
+    {
+      "name": "Local Meat market",
+      "id": "47255000000116627"
+    },
+    {
+      "name": "Da Silva Meat Market",
+      "id": "47255000000117552"
+    },
+    {
+      "name": "Brazil For You - Taunton",
+      "id": "47255000000120403"
+    },
+    {
+      "name": "Queiroz Meat Market II",
+      "id": "47255000000116634"
+    },
+    {
+      "name": "Pingo Doce Meat Market",
+      "id": "47255000000117559"
+    },
+    {
+      "name": "Brazil For You Norwood",
+      "id": "47255000000116641"
+    },
+    {
+      "name": "Brazilian Deli Meat Market III",
+      "id": "47255000000118632"
+    },
+    {
+      "name": "Alfredo Oliveira",
+      "id": "47255000000115934"
+    },
+    {
+      "name": "Minas Brazil Meat Market - Luciano/Fabio",
+      "id": "47255000000118639"
+    },
+    {
+      "name": "Du Evangelista",
+      "id": "47255000000117566"
+    },
+    {
+      "name": "Loja da Fogaça Vineyard Grocery",
+      "id": "47255000000120410"
+    },
+    {
+      "name": "Oliveira Deli Lowell",
+      "id": "47255000000119569"
+    },
+    {
+      "name": "Juliana",
+      "id": "47255000000115941"
+    },
+    {
+      "name": "Pingo Doce Market",
+      "id": "47255000000118646"
+    }
+  ],
+  "failed": [
+    {
+      "name": "Mineirão Market - Peabody",
+      "error": "{\"code\":3062,\"message\":\"The customer \\\"Mineirão Market - Peabody\\\" already exists. Please specify a different name.\"}",
+      "payload": {
+        "contact_name": "Mineirão Market - Peabody",
+        "company_name": "Mineirão Market - Peabody",
+        "contact_type": "customer",
+        "phone": "19787173007",
+        "billing_address": {
+          "address": "19 Central St, Peabody, MA 01960-0058, United States"
+        },
+        "shipping_address": {
+          "address": "19 Central St, Peabody, MA 01960-0058, United States"
+        }
+      }
+    },
+    {
+      "name": "JB SPORTS LLC",
+      "error": "{\"code\":3062,\"message\":\"The customer \\\"JB SPORTS LLC\\\" already exists. Please specify a different name.\"}",
+      "payload": {
+        "contact_name": "JB SPORTS LLC",
+        "company_name": "JB SPORTS LLC",
+        "contact_type": "customer",
+        "email": "flexibrace@gmail.com",
+        "phone": "+16179303044",
+        "billing_address": {
+          "address": "6R HENSHAW ST"
+        },
+        "shipping_address": {
+          "address": "6R HENSHAW ST"
+        }
+      }
+    }
+  ]
+}
