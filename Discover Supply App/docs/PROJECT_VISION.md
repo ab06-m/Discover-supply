@@ -66,55 +66,50 @@ Anything outside this flow (generic POS, multi-location, PO approvals) is second
 
 ## Repository layout
 
-All code lives under `Claude system/` inside this workspace. The outer folder holds non-code assets and docs only.
+The project is organized into logical subdirectories for apps, tools, data, and documentation.
 
 ```
-Claude system/
-├── app/                 # Next.js routes — thin, delegate to modules
-│   ├── (staff)/         # Staff app
-│   ├── (auth)/
-│   ├── portal/          # Customer portal (separate auth)
-│   ├── shop/            # Public B2B storefront
-│   ├── i/[token]/       # Tokenized public invoice links
-│   ├── api/
-│   └── onboarding/
-├── modules/             # Self-contained feature slices
-│   ├── inventory/       # Products, stock, check-in, barcode
-│   ├── orders/          # Sales orders, pipeline stages
-│   ├── invoices/        # Invoices + templates + merge fields
-│   ├── dispatch/        # Delivery, proof of delivery
-│   ├── customers/       # Stores/contacts
-│   ├── storefront/      # B2B shop pages + cart
-│   ├── portal/          # Customer portal views
-│   ├── reports/
-│   └── settings/
-├── lib/                 # Cross-module shared code
-│   ├── db/              # Drizzle schema
-│   ├── supabase/        # SSR/browser clients + middleware
-│   ├── auth.ts
-│   ├── permissions.ts
-│   └── utils.ts
-├── components/ui/       # shadcn primitives
-└── drizzle/             # Migrations + hand-written RLS
+Discover Supply App/
+├── apps/
+│   ├── main/            # Primary distribution management app (Next.js)
+│   │   ├── app/         # Next.js routes
+│   │   ├── modules/     # Feature modules
+│   │   ├── lib/         # Shared logic
+│   │   └── ...
+│   └── store/           # B2B Storefront app
+├── tools/
+│   ├── import-scripts/  # Data migration and import scripts
+│   └── zoho-mcp/        # Zoho Inventory MCP server
+├── data/
+│   ├── imports/         # Raw CSV data (Kyte exports, etc.)
+│   └── assets/          # Shared media assets and images
+└── docs/
+    └── PROJECT_VISION.md # This document
 ```
 
-**Module contract:** each `modules/<name>/` may contain `schema.ts`, `actions.ts`, `queries.ts`, `components/`, `lib/`, `types.ts`. New features land as new modules — never bolted directly into `app/`. Routes stay under ~30 lines and import from `@/modules/<name>/…`.
+### Main App Structure (apps/main/)
+Primary code follows a modular architecture:
+- `app/`: Next.js routes — thin, delegate to modules.
+- `modules/`: Self-contained feature slices (inventory, orders, etc.).
+- `lib/`: Cross-module shared code (db, auth, permissions).
+- `components/ui/`: UI primitives (shadcn).
+- `drizzle/`: Migrations and RLS rules.
 
-## Migration assets (parent folder)
+## Assets & Migration Data
 
-The parent `Discover Supply/` folder contains real data from the beta user's Kyte account:
+Migration assets are located in the `data/` directory:
 
-- `Products_20260120_20260420.csv`, `Products_with_Images.csv`
-- `Customers_20260120_20260420.csv`
-- `kyte_images/`, `kyte_images_ai_up/`, `kyte_images_optimized/` — product photos
-- `import-scripts/`, `discover-store/`, `zoho-inventory-mcp/`, `scratch/`
+- `data/imports/`: `Products_...csv`, `Customers_...csv`, `Products_with_Images.csv`
+- `data/assets/`: Shared images and processed photos.
+- `tools/`: `import-scripts/`, `zoho-mcp/`, `scratch/`
+
 
 Kyte → Discover Supply column mapping (for when we build import):
 `Code → sku` · `Name → name` · `Current Stock → onHand` · `Minimum Stock → lowStockThreshold` · `Cost → cost` · `Price → price` · `Unit → unit` (normalize "pcs/each" → `each`) · `Image_Path → imageUrl` (upload to Supabase Storage, rewrite URL). `Category` creates categories on the fly. Historical sales aggregates are skipped unless reconstruction is requested.
 
 ## Guardrails
 
-- Never scaffold files at the workspace root — always inside `Claude system/`.
+- Never scaffold files at the workspace root — always inside `apps/main/`.
 - Never hardcode stage names in business logic.
 - Never mix staff `memberships` with customer portal access.
 - Never emit raw entity UUIDs in public links — always tokens.
