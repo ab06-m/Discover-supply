@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Package } from "lucide-react";
 import { requireCustomer } from "@/modules/customers/portal-auth";
 import { listCatalog } from "@/modules/storefront/queries";
 import { AddToCartButton } from "@/modules/storefront/components/add-to-cart";
@@ -67,11 +68,16 @@ export default async function ShopCatalog({
                   </span>
                   {p.trackStock && (
                     <span
-                      className={`text-xs ${p.available <= 0 ? "text-rose-600" : "text-muted-foreground"}`}
+                      className={`inline-flex items-center gap-1 text-xs ${p.available <= 0 ? "text-rose-600" : "text-muted-foreground"}`}
                     >
-                      {p.available <= 0
-                        ? "Out of stock"
-                        : `${p.available} in stock`}
+                      {p.available <= 0 ? (
+                        "Out of stock"
+                      ) : (
+                        <>
+                          <Package className="h-3.5 w-3.5" />
+                          <span>{p.available} in stock</span>
+                        </>
+                      )}
                     </span>
                   )}
                 </div>

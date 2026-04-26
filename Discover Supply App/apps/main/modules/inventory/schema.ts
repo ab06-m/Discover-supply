@@ -68,7 +68,7 @@ export const products = pgTable(
     // Split stock — the single source of inventory truth.
     onHand: integer("on_hand").notNull().default(0),
     committed: integer("committed").notNull().default(0),
-    lowStockThreshold: integer("low_stock_threshold").notNull().default(0),
+    lowStockThreshold: integer("low_stock_threshold"),
     trackStock: boolean("track_stock").notNull().default(true),
     imageUrl: text("image_url"),
     isActive: boolean("is_active").notNull().default(true),

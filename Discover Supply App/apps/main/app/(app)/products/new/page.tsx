@@ -1,11 +1,13 @@
 import { requireActiveOrg } from "@/lib/auth";
 import { assertCan, type Role } from "@/lib/permissions";
 import { ProductForm } from "@/modules/inventory/components/product-form";
+import { getInventorySettings } from "@/modules/inventory/lib/stock-rules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function NewProductPage() {
-  const { role } = await requireActiveOrg();
+  const { org, role } = await requireActiveOrg();
   assertCan(role as Role, "product.write");
+  const { defaultLowStockThreshold } = getInventorySettings(org.settings);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -18,7 +20,7 @@ export default async function NewProductPage() {
           <CardTitle>Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <ProductForm mode="create" />
+          <ProductForm mode="create" defaultLowStockThreshold={defaultLowStockThreshold} />
         </CardContent>
       </Card>
     </div>

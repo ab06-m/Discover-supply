@@ -3,6 +3,7 @@ import { requireActiveOrg } from "@/lib/auth";
 import { assertCan, type Role } from "@/lib/permissions";
 import { getProduct } from "@/modules/inventory/queries";
 import { ProductForm } from "@/modules/inventory/components/product-form";
+import { getInventorySettings } from "@/modules/inventory/lib/stock-rules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function EditProductPage({
@@ -12,6 +13,7 @@ export default async function EditProductPage({
 }) {
   const { org, role } = await requireActiveOrg();
   assertCan(role as Role, "product.write");
+  const { defaultLowStockThreshold } = getInventorySettings(org.settings);
   const { id } = await params;
   const product = await getProduct(org.id, id);
   if (!product) notFound();
@@ -27,7 +29,11 @@ export default async function EditProductPage({
           <CardTitle>Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <ProductForm mode="edit" initial={product} />
+          <ProductForm
+            mode="edit"
+            initial={product}
+            defaultLowStockThreshold={defaultLowStockThreshold}
+          />
         </CardContent>
       </Card>
     </div>

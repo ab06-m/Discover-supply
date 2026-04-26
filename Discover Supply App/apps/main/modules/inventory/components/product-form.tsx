@@ -12,9 +12,10 @@ import type { Product } from "../schema";
 type Props = {
   mode: "create" | "edit";
   initial?: Partial<Product>;
+  defaultLowStockThreshold: number;
 };
 
-export function ProductForm({ mode, initial }: Props) {
+export function ProductForm({ mode, initial, defaultLowStockThreshold }: Props) {
   const router = useRouter();
   const [scanning, setScanning] = useState(false);
   const [barcode, setBarcode] = useState(initial?.barcode ?? "");
@@ -106,14 +107,18 @@ export function ProductForm({ mode, initial }: Props) {
           <Input id="cost" name="cost" type="number" step="0.01" min={0} defaultValue={initial?.cost ?? "0"} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="lowStockThreshold">Low stock alert</Label>
+          <Label htmlFor="lowStockThreshold">Low stock alert override</Label>
           <Input
             id="lowStockThreshold"
             name="lowStockThreshold"
             type="number"
             min={0}
-            defaultValue={initial?.lowStockThreshold ?? 0}
+            defaultValue={initial?.lowStockThreshold ?? ""}
+            placeholder={String(defaultLowStockThreshold)}
           />
+          <p className="text-xs text-muted-foreground">
+            Leave blank to use the inventory default of {defaultLowStockThreshold}.
+          </p>
         </div>
       </div>
 

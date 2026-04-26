@@ -18,7 +18,14 @@ const productSchema = z.object({
   packSize: z.coerce.number().int().min(1).default(1),
   price: z.coerce.number().min(0).default(0),
   cost: z.coerce.number().min(0).default(0),
-  lowStockThreshold: z.coerce.number().int().min(0).default(0),
+  lowStockThreshold: z.preprocess(
+    (value) => {
+      if (value == null) return null;
+      const text = String(value).trim();
+      return text === "" ? null : text;
+    },
+    z.coerce.number().int().min(0).nullable(),
+  ),
   trackStock: z
     .union([z.literal("on"), z.literal("true"), z.boolean()])
     .optional()
@@ -38,7 +45,7 @@ export async function createProduct(formData: FormData) {
     packSize: formData.get("packSize") ?? 1,
     price: formData.get("price") ?? 0,
     cost: formData.get("cost") ?? 0,
-    lowStockThreshold: formData.get("lowStockThreshold") ?? 0,
+    lowStockThreshold: formData.get("lowStockThreshold"),
     trackStock: formData.get("trackStock") ?? false,
   });
 
@@ -80,7 +87,7 @@ export async function updateProduct(formData: FormData) {
     packSize: formData.get("packSize") ?? 1,
     price: formData.get("price") ?? 0,
     cost: formData.get("cost") ?? 0,
-    lowStockThreshold: formData.get("lowStockThreshold") ?? 0,
+    lowStockThreshold: formData.get("lowStockThreshold"),
     trackStock: formData.get("trackStock") ?? false,
   });
 

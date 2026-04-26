@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Pencil, Plus } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
-import { getCustomer } from "@/modules/customers/queries";
+import { getCustomer, listCustomers } from "@/modules/customers/queries";
 import { db, schema } from "@/lib/db";
 import { and, desc, eq } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/utils";
+import { MergeDialog } from "@/modules/customers/components/merge-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,10 @@ export default async function CustomerDetailPage({
 }) {
   const { org } = await requireActiveOrg();
   const { id } = await params;
-  const customer = await getCustomer(org.id, id);
+  const [customer, allCustomers] = await Promise.all([
+    getCustomer(org.id, id),
+    listCustomers(org.id, { includeInactive: true }),
+  ]);
   if (!customer) notFound();
 
   const recentOrders = await db
@@ -56,6 +60,7 @@ export default async function CustomerDetailPage({
           </div>
         </div>
         <div className="flex gap-2">
+          <MergeDialog current={customer} candidates={allCustomers.filter((c) => c.id !== id)} />
           <Button asChild variant="outline">
             <Link href={`/customers/${id}/edit`}><Pencil className="mr-2 h-4 w-4" />Edit</Link>
           </Button>

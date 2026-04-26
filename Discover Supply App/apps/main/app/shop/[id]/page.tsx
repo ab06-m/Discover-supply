@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Package } from "lucide-react";
 import { requireCustomer } from "@/modules/customers/portal-auth";
 import { getCatalogItem } from "@/modules/storefront/queries";
 import { AddToCartButton } from "@/modules/storefront/components/add-to-cart";
@@ -46,9 +46,16 @@ export default async function ShopItem({
             </span>
           </div>
           {p.trackStock && (
-            <p className={`text-sm ${p.available <= 0 ? "text-rose-600" : "text-muted-foreground"}`}>
-              {p.available <= 0 ? "Out of stock" : `${p.available} in stock`}
-            </p>
+            <div className={`inline-flex items-center gap-1.5 text-sm ${p.available <= 0 ? "text-rose-600" : "text-muted-foreground"}`}>
+              {p.available <= 0 ? (
+                <span>Out of stock</span>
+              ) : (
+                <>
+                  <Package className="h-4 w-4" />
+                  <span>{p.available} in stock</span>
+                </>
+              )}
+            </div>
           )}
           <AddToCartButton
             productId={p.id}

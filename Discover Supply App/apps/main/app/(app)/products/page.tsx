@@ -1,7 +1,12 @@
 import Link from "next/link";
-import { Plus, PackagePlus, AlertTriangle } from "lucide-react";
+import { Plus, PackagePlus, AlertTriangle, Package } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
 import { listProducts } from "@/modules/inventory/queries";
+import {
+  getInventorySettings,
+  getStockStatus,
+  resolveLowStockThreshold,
+} from "@/modules/inventory/lib/stock-rules";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -18,6 +23,7 @@ export default async function ProductsPage({
   const { org } = await requireActiveOrg();
   const { q, received } = await searchParams;
   const products = await listProducts(org.id, { search: q });
+  const { defaultLowStockThreshold } = getInventorySettings(org.settings);
 
   return (
     <div className="space-y-4">
@@ -70,8 +76,13 @@ export default async function ProductsPage({
               </TableRow>
             )}
             {products.map((p) => {
-              const low =
-                p.trackStock && Number(p.available) <= Number(p.lowStockThreshold ?? 0);
+              const effectiveLowStockThreshold = resolveLowStockThreshold(
+                p.lowStockThreshold,
+                defaultLowStockThreshold,
+              );
+              const stockStatus = p.trackStock
+                ? getStockStatus(Number(p.available), effectiveLowStockThreshold)
+                : null;
               return (
                 <TableRow key={p.id}>
                   <TableCell>
@@ -85,9 +96,19 @@ export default async function ProductsPage({
                   <TableCell className="text-muted-foreground">{p.sku ?? "—"}</TableCell>
                   <TableCell className="text-right">{formatMoney(p.price, org.currency)}</TableCell>
                   <TableCell className="text-right">
-                    <span className="inline-flex items-center gap-1">
-                      {low && <AlertTriangle className="h-3 w-3 text-amber-500" />}
-                      {p.trackStock ? p.available : "—"}
+                    <span className="inline-flex items-center justify-end gap-1">
+                      {p.trackStock ? (
+                        <>
+                          {stockStatus === "good" ? (
+                            <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                          ) : (
+                            <AlertTriangle
+                              className={`h-3.5 w-3.5 ${stockStatus === "out" ? "text-rose-600" : "text-amber-500"}`}
+                            />
+                          )}
+                          <span>{p.available}</span>
+                        </>
+                      ) : "—"}
                     </span>
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">

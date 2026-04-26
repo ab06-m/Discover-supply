@@ -12,6 +12,7 @@ import {
   Store,
   BarChart3,
   Settings,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,9 +20,10 @@ const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/products", label: "Inventory", icon: Package },
   { href: "/check-in", label: "Check in", icon: PackagePlus },
+  { href: "/import", label: "Import", icon: Upload },
   { href: "/orders", label: "Orders", icon: ShoppingCart },
   { href: "/invoices", label: "Invoices", icon: FileText },
-  { href: "/dispatch", label: "Delivery", icon: Truck },
+  { href: "/delivery", label: "Delivery", icon: Truck },
   { href: "/customers", label: "Stores", icon: Store },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },

@@ -5,7 +5,7 @@ export async function listProducts(
   orgId: string,
   opts: { search?: string; limit?: number; offset?: number } = {},
 ) {
-  const { search, limit = 50, offset = 0 } = opts;
+  const { search, limit = 2000, offset = 0 } = opts;
   const where = search
     ? and(
         eq(schema.products.orgId, orgId),

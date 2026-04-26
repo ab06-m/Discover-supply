@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db, schema } from "@/lib/db";
 import { requireActiveOrg } from "@/lib/auth";
 import { assertCan, type Role } from "@/lib/permissions";
+import { getCustomer } from "./queries";
 
 const addressSchema = z
   .object({
@@ -123,4 +124,71 @@ export async function setCustomerActive(id: string, isActive: boolean) {
     .set({ isActive })
     .where(and(eq(schema.customers.orgId, org.id), eq(schema.customers.id, id)));
   revalidatePath("/customers");
+}
+
+export async function fetchCustomer(id: string) {
+  const { org } = await requireActiveOrg();
+  return getCustomer(org.id, id);
+}
+
+export async function mergeCustomers(input: {
+  keepId: string;
+  mergeId: string;
+  useFromMerge: {
+    phone: boolean;
+    email: boolean;
+    notes: boolean;
+    paymentTerms: boolean;
+    billingAddress: boolean;
+    shippingAddress: boolean;
+  };
+}) {
+  const { org, role } = await requireActiveOrg();
+  assertCan(role as Role, "customer.write");
+
+  const [keep, merge] = await Promise.all([
+    getCustomer(org.id, input.keepId),
+    getCustomer(org.id, input.mergeId),
+  ]);
+  if (!keep || !merge) throw new Error("Customer not found");
+  if (keep.id === merge.id) throw new Error("Cannot merge a customer with itself");
+
+  // Reassign all orders from merge → keep
+  await db
+    .update(schema.orders)
+    .set({ customerId: input.keepId })
+    .where(and(eq(schema.orders.orgId, org.id), eq(schema.orders.customerId, input.mergeId)));
+
+  // Reassign all invoices from merge → keep
+  await db
+    .update(schema.invoices)
+    .set({ customerId: input.keepId })
+    .where(and(eq(schema.invoices.orgId, org.id), eq(schema.invoices.customerId, input.mergeId)));
+
+  // Apply field overrides to the kept customer
+  const updates: Record<string, unknown> = {};
+  if (input.useFromMerge.phone && merge.phone) updates.phone = merge.phone;
+  if (input.useFromMerge.email && merge.email) updates.email = merge.email;
+  if (input.useFromMerge.notes && merge.notes) updates.notes = merge.notes;
+  if (input.useFromMerge.paymentTerms && merge.paymentTerms) updates.paymentTerms = merge.paymentTerms;
+  if (input.useFromMerge.billingAddress && merge.billingAddress) updates.billingAddress = merge.billingAddress;
+  if (input.useFromMerge.shippingAddress && merge.shippingAddress) updates.shippingAddress = merge.shippingAddress;
+
+  if (Object.keys(updates).length) {
+    await db
+      .update(schema.customers)
+      .set(updates)
+      .where(and(eq(schema.customers.orgId, org.id), eq(schema.customers.id, input.keepId)));
+  }
+
+  // Deactivate the merged-in customer
+  await db
+    .update(schema.customers)
+    .set({ isActive: false })
+    .where(and(eq(schema.customers.orgId, org.id), eq(schema.customers.id, input.mergeId)));
+
+  revalidatePath("/customers");
+  revalidatePath(`/customers/${input.keepId}`);
+  revalidatePath(`/customers/${input.mergeId}`);
+  return { success: true };
 }
