@@ -19,7 +19,7 @@ export async function requireUser() {
   return user;
 }
 
-export async function getUserMemberships(userId: string) {
+export const getUserMemberships = cache(async (userId: string) => {
   return db
     .select({
       orgId: schema.memberships.orgId,
@@ -29,9 +29,9 @@ export async function getUserMemberships(userId: string) {
     .from(schema.memberships)
     .innerJoin(schema.organizations, eq(schema.memberships.orgId, schema.organizations.id))
     .where(eq(schema.memberships.userId, userId));
-}
+});
 
-export async function getActiveOrg() {
+export const getActiveOrg = cache(async () => {
   const user = await requireUser();
   const memberships = await getUserMemberships(user.id);
   if (memberships.length === 0) return { user, org: null, role: null, memberships };
@@ -41,7 +41,7 @@ export async function getActiveOrg() {
   const active =
     memberships.find((m) => m.orgId === cookieOrgId) ?? memberships[0];
   return { user, org: active.org, role: active.role, memberships };
-}
+});
 
 export async function requireActiveOrg() {
   const result = await getActiveOrg();

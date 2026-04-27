@@ -1,7 +1,8 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { Plus, PackagePlus, AlertTriangle, Package } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
-import { listProducts } from "@/modules/inventory/queries";
+import { listProducts, countProducts } from "@/modules/inventory/queries";
 import {
   getInventorySettings,
   getStockStatus,
@@ -9,21 +10,38 @@ import {
 } from "@/modules/inventory/lib/stock-rules";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PaginationControls } from "@/components/app/pagination-controls";
+import { ProductSearchInput } from "@/components/app/product-search-input";
 import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+const DEFAULT_PER_PAGE = 50;
+const ALLOWED_PER_PAGE = [25, 50, 100, 250];
+
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; received?: string }>;
+  searchParams: Promise<{ q?: string; received?: string; page?: string; per_page?: string }>;
 }) {
   const { org } = await requireActiveOrg();
-  const { q, received } = await searchParams;
-  const products = await listProducts(org.id, { search: q });
+  const { q, received, page: pageParam, per_page: perPageParam } = await searchParams;
+
+  const perPage = ALLOWED_PER_PAGE.includes(Number(perPageParam))
+    ? Number(perPageParam)
+    : DEFAULT_PER_PAGE;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const offset = (page - 1) * perPage;
+
+  const [products, total] = await Promise.all([
+    listProducts(org.id, { search: q, limit: perPage, offset }),
+    countProducts(org.id, q),
+  ]);
+
   const { defaultLowStockThreshold } = getInventorySettings(org.settings);
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const safePage = Math.min(page, totalPages);
 
   return (
     <div className="space-y-4">
@@ -31,7 +49,7 @@ export default async function ProductsPage({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Inventory</h1>
           <p className="text-sm text-muted-foreground">
-            {products.length} product{products.length === 1 ? "" : "s"}
+            {total} product{total === 1 ? "" : "s"}
           </p>
         </div>
         <div className="flex gap-2">
@@ -50,8 +68,8 @@ export default async function ProductsPage({
         </div>
       )}
 
-      <form className="max-w-sm">
-        <Input name="q" placeholder="Search name, SKU, or barcode…" defaultValue={q ?? ""} />
+      <form>
+        <ProductSearchInput defaultValue={q ?? ""} />
       </form>
 
       <div className="overflow-hidden rounded-md border bg-background">
@@ -71,7 +89,9 @@ export default async function ProductsPage({
             {products.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
-                  No products yet. <Link className="underline" href="/products/new">Add your first product</Link>.
+                  {q
+                    ? "No products match your search."
+                    : <>No products yet. <Link className="underline" href="/products/new">Add your first product</Link>.</>}
                 </TableCell>
               </TableRow>
             )}
@@ -126,6 +146,10 @@ export default async function ProductsPage({
           </TableBody>
         </Table>
       </div>
+
+      <Suspense>
+        <PaginationControls total={total} page={safePage} perPage={perPage} />
+      </Suspense>
     </div>
   );
 }

@@ -1,11 +1,27 @@
 import { db, schema } from "@/lib/db";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
+
+export async function countProducts(orgId: string, search?: string) {
+  const where = search
+    ? and(
+        eq(schema.products.orgId, orgId),
+        or(
+          ilike(schema.products.name, `%${search}%`),
+          ilike(schema.products.sku, `%${search}%`),
+          ilike(schema.products.barcode, `%${search}%`),
+        ),
+      )
+    : eq(schema.products.orgId, orgId);
+
+  const [row] = await db.select({ total: count() }).from(schema.products).where(where);
+  return row?.total ?? 0;
+}
 
 export async function listProducts(
   orgId: string,
   opts: { search?: string; limit?: number; offset?: number } = {},
 ) {
-  const { search, limit = 2000, offset = 0 } = opts;
+  const { search, limit = 50, offset = 0 } = opts;
   const where = search
     ? and(
         eq(schema.products.orgId, orgId),
@@ -40,6 +56,33 @@ export async function listProducts(
     .orderBy(desc(schema.products.createdAt))
     .limit(limit)
     .offset(offset);
+}
+
+export async function searchProductSuggestions(orgId: string, query: string, limit = 8) {
+  const search = query.trim();
+  if (search.length < 1) return [];
+
+  return db
+    .select({
+      id: schema.products.id,
+      name: schema.products.name,
+      sku: schema.products.sku,
+      barcode: schema.products.barcode,
+    })
+    .from(schema.products)
+    .where(
+      and(
+        eq(schema.products.orgId, orgId),
+        eq(schema.products.isActive, true),
+        or(
+          ilike(schema.products.name, `%${search}%`),
+          ilike(schema.products.sku, `%${search}%`),
+          ilike(schema.products.barcode, `%${search}%`),
+        ),
+      ),
+    )
+    .orderBy(desc(schema.products.updatedAt))
+    .limit(limit);
 }
 
 export async function getProduct(orgId: string, id: string) {
