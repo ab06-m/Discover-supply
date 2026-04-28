@@ -8,7 +8,7 @@ import { requireUser, ACTIVE_ORG_COOKIE, getUserMemberships } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
 import { and, eq } from "drizzle-orm";
 import { DEFAULT_STAGES } from "@/modules/orders/lib/stages";
-import { DEFAULT_INVOICE_TEMPLATE_CONFIG } from "@/modules/invoices/schema";
+import { INVOICE_TEMPLATE_PRESETS } from "@/modules/invoices/template-presets";
 
 export async function setActiveOrg(orgId: string) {
   const user = await requireUser();
@@ -78,14 +78,16 @@ export async function createOrganization(formData: FormData) {
     })),
   );
 
-  // Seed a default invoice template so the first invoice renders without setup.
-  await db.insert(schema.invoiceTemplates).values({
-    orgId: org.id,
-    name: "Default",
-    layout: "clean",
-    isDefault: true,
-    config: DEFAULT_INVOICE_TEMPLATE_CONFIG,
-  });
+  // Seed the four invoice templates so the first invoice renders without setup.
+  await db.insert(schema.invoiceTemplates).values(
+    INVOICE_TEMPLATE_PRESETS.map((preset) => ({
+      orgId: org.id,
+      name: preset.name,
+      layout: preset.layout,
+      isDefault: preset.isDefault,
+      config: preset.config,
+    })),
+  );
 
   const cookieStore = await cookies();
   cookieStore.set(ACTIVE_ORG_COOKIE, org.id, {

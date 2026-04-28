@@ -78,6 +78,12 @@ export const invoices = pgTable(
   },
   (t) => ({
     orgIdx: index("invoices_org_idx").on(t.orgId),
+    orgCreatedIdx: index("invoices_org_created_idx").on(t.orgId, t.createdAt),
+    orgStatusCreatedIdx: index("invoices_org_status_created_idx").on(
+      t.orgId,
+      t.status,
+      t.createdAt,
+    ),
     customerIdx: index("invoices_customer_idx").on(t.customerId),
     numberUnique: uniqueIndex("invoices_org_number_unique").on(t.orgId, t.number),
   }),

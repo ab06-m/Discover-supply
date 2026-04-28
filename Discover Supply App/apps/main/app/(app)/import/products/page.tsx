@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
-import Papa from "papaparse";
-import { Upload, CheckCircle, XCircle, AlertTriangle, ArrowLeft } from "lucide-react";
+import { useRef, useState } from "react";
 import Link from "next/link";
+import Papa from "papaparse";
+import { AlertTriangle, CheckCircle, Upload, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -13,8 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader } from "@/components/app/page-header";
 import { importProducts } from "@/modules/import/actions";
-import type { ProductImportRow, ImportResult } from "@/modules/import/types";
+import type { ImportResult, ProductImportRow } from "@/modules/import/types";
 
 const PREVIEW_COLS: Array<{ key: keyof ProductImportRow; label: string }> = [
   { key: "Code", label: "Barcode" },
@@ -22,7 +24,7 @@ const PREVIEW_COLS: Array<{ key: keyof ProductImportRow; label: string }> = [
   { key: "Category", label: "Category" },
   { key: "Unit", label: "Unit" },
   { key: "Current Stock", label: "Stock" },
-  { key: "Minimum Stock", label: "Min Stock" },
+  { key: "Minimum Stock", label: "Min stock" },
   { key: "Cost", label: "Cost" },
   { key: "Price", label: "Price" },
 ];
@@ -66,22 +68,16 @@ export default function ImportProductsPage() {
   const preview = rows.slice(0, 10);
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <div className="flex items-center gap-3">
-        <Link href="/import" className="text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Import Products</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Upload a KyteApp products CSV. Duplicates (by barcode or name) are skipped automatically.
-          </p>
-        </div>
-      </div>
+    <div className="max-w-5xl space-y-6">
+      <PageHeader
+        title="Import products"
+        subtitle="Upload a KyteApp products CSV. Duplicates by barcode or name are skipped automatically."
+        backHref="/import"
+        backLabel="Import"
+      />
 
-      {/* Drop zone */}
-      <div
-        className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-10 text-center cursor-pointer hover:border-primary/60 transition-colors"
+      <Card
+        className="flex cursor-pointer flex-col items-center justify-center gap-3 border-dashed p-10 text-center shadow-card transition hover:border-primary"
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
@@ -90,7 +86,9 @@ export default function ImportProductsPage() {
           if (file) handleFile(file);
         }}
       >
-        <Upload className="h-8 w-8 text-muted-foreground" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Upload className="h-6 w-6" />
+        </div>
         <div>
           <p className="font-medium">{fileName || "Click or drag a CSV file here"}</p>
           <p className="text-sm text-muted-foreground">
@@ -107,31 +105,30 @@ export default function ImportProductsPage() {
             if (f) handleFile(f);
           }}
         />
-      </div>
+      </Card>
 
       {parseError && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
           {parseError}
         </div>
       )}
 
       {rows.length > 0 && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex gap-2 items-start">
-          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-warning">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             Product images reference local file paths and cannot be imported automatically. Add
-            images individually from each product&apos;s edit page after import.
+            images individually from each product edit page after import.
           </span>
         </div>
       )}
 
-      {/* Preview table */}
       {preview.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="font-semibold text-sm">
-            Preview — first {preview.length} of {rows.length} rows
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase text-muted-foreground">
+            Preview - first {preview.length} of {rows.length} rows
           </h2>
-          <div className="overflow-x-auto rounded-md border">
+          <Card className="overflow-x-auto shadow-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -143,10 +140,10 @@ export default function ImportProductsPage() {
               <TableBody>
                 {preview.map((row, i) => (
                   <TableRow key={i}>
-                    <TableCell className="font-mono text-xs">{row.Code || "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{row.Code || "-"}</TableCell>
                     <TableCell className="font-medium">{row.Name}</TableCell>
-                    <TableCell>{row.Category || "—"}</TableCell>
-                    <TableCell>{row.Unit || "—"}</TableCell>
+                    <TableCell>{row.Category || "-"}</TableCell>
+                    <TableCell>{row.Unit || "-"}</TableCell>
                     <TableCell className="text-right">{row["Current Stock"] || "0"}</TableCell>
                     <TableCell className="text-right">{row["Minimum Stock"] || "0"}</TableCell>
                     <TableCell className="text-right">{row.Cost || "0"}</TableCell>
@@ -155,59 +152,64 @@ export default function ImportProductsPage() {
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </Card>
           {rows.length > 10 && (
-            <p className="text-xs text-muted-foreground">… and {rows.length - 10} more rows</p>
+            <p className="text-xs text-muted-foreground">... and {rows.length - 10} more rows</p>
           )}
         </div>
       )}
 
       {rows.length > 0 && !result && (
         <Button onClick={handleImport} disabled={loading}>
-          {loading ? "Importing…" : `Import ${rows.length} products`}
+          {loading ? "Importing..." : `Import ${rows.length} products`}
         </Button>
       )}
 
       {result && (
-        <div className="rounded-md border bg-background p-4 space-y-3">
+        <Card className="space-y-3 p-4 shadow-card">
           <div className="flex items-center gap-2 font-medium">
-            <CheckCircle className="h-4 w-4 text-green-600" />
+            <CheckCircle className="h-4 w-4 text-success" />
             Import complete
           </div>
-          <ul className="text-sm space-y-1">
+          <ul className="space-y-1 text-sm">
             <li>
-              <span className="font-medium text-green-700">{result.imported}</span> product
+              <span className="font-medium text-success">{result.imported}</span> product
               {result.imported === 1 ? "" : "s"} imported
             </li>
             <li className="text-muted-foreground">
-              {result.skipped} skipped — already exist in inventory
+              {result.skipped} skipped - already exist in inventory
             </li>
           </ul>
           {result.errors.length > 0 && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 space-y-1">
+            <div className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               <div className="flex items-center gap-1 font-medium">
                 <XCircle className="h-4 w-4" />
                 {result.errors.length} error{result.errors.length === 1 ? "" : "s"}
               </div>
-              <ul className="list-disc list-inside space-y-0.5">
+              <ul className="list-inside list-disc space-y-0.5">
                 {result.errors.slice(0, 10).map((e, i) => (
                   <li key={i}>{e}</li>
                 ))}
-                {result.errors.length > 10 && (
-                  <li>… and {result.errors.length - 10} more</li>
-                )}
+                {result.errors.length > 10 && <li>... and {result.errors.length - 10} more</li>}
               </ul>
             </div>
           )}
-          <div className="flex gap-2 pt-1">
-            <Button variant="outline" onClick={() => { setRows([]); setFileName(""); setResult(null); }}>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRows([]);
+                setFileName("");
+                setResult(null);
+              }}
+            >
               Import another file
             </Button>
             <Button asChild>
               <Link href="/products">View inventory</Link>
             </Button>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

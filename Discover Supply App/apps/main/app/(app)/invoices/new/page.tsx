@@ -5,6 +5,7 @@ import { requireActiveOrg } from "@/lib/auth";
 import { listTemplates } from "@/modules/invoices/queries";
 import { getOrder } from "@/modules/orders/queries";
 import { createInvoiceFromOrder } from "@/modules/invoices/actions";
+import { ensureInvoiceTemplatePresets } from "@/modules/invoices/template-presets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ export default async function NewInvoicePage({
   const { org } = await requireActiveOrg();
   const { order: orderId } = await searchParams;
   if (!orderId) redirect("/orders");
+  await ensureInvoiceTemplatePresets(org.id);
 
   const [record, templates] = await Promise.all([
     getOrder(org.id, orderId),

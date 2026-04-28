@@ -9,6 +9,11 @@ import { assertCan, type Role } from "@/lib/permissions";
 import { generateDocNumber } from "@/modules/inventory/lib/generate-number";
 import { applyStageEffect } from "./lib/apply-stage-effect";
 import { getInitialStage, searchProductsForOrder } from "./queries";
+import { DEFAULT_ORDER_TEMPLATE_CONFIG } from "./schema";
+import {
+  isMissingOrderTemplatesTable,
+  ORDER_TEMPLATES_MIGRATION_MESSAGE,
+} from "./template-db";
 
 const lineSchema = z.object({
   productId: z.string().uuid().optional(),
@@ -272,4 +277,143 @@ export async function updateOrderNotes(input: z.input<typeof notesSchema>) {
 export async function searchOrderProducts(query: string) {
   const { org } = await requireActiveOrg();
   return searchProductsForOrder(org.id, query);
+}
+
+export async function browseOrderProducts(opts: { search?: string; limit?: number } = {}) {
+  const { org } = await requireActiveOrg();
+  const { listProducts } = await import("@/modules/inventory/queries");
+  const rows = await listProducts(org.id, {
+    search: opts.search,
+    limit: opts.limit ?? 50,
+  });
+  return rows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    sku: p.sku,
+    barcode: p.barcode,
+    unit: p.unit,
+    price: p.price,
+    onHand: p.onHand,
+    committed: p.committed,
+    imageUrl: p.imageUrl,
+  }));
+}
+
+const optionalTemplateText = z
+  .string()
+  .max(2000)
+  .optional()
+  .or(z.literal(""))
+  .transform((v) => (v ? v : undefined));
+
+const orderTemplateConfigSchema = z.object({
+  brandColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default(DEFAULT_ORDER_TEMPLATE_CONFIG.brandColor),
+  accentColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default(DEFAULT_ORDER_TEMPLATE_CONFIG.accentColor),
+  fontFamily: z.enum(["sans", "serif", "mono"]).default(DEFAULT_ORDER_TEMPLATE_CONFIG.fontFamily),
+  showLogo: z.boolean().default(DEFAULT_ORDER_TEMPLATE_CONFIG.showLogo),
+  logoUrl: z
+    .string()
+    .max(500)
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : undefined)),
+  headerText: optionalTemplateText,
+  footerText: optionalTemplateText,
+  termsText: optionalTemplateText,
+  showTaxBreakdown: z.boolean().default(DEFAULT_ORDER_TEMPLATE_CONFIG.showTaxBreakdown),
+  dateFormat: z.enum(["us", "iso", "eu"]).default(DEFAULT_ORDER_TEMPLATE_CONFIG.dateFormat),
+  showOrderNumber: z.boolean().default(DEFAULT_ORDER_TEMPLATE_CONFIG.showOrderNumber),
+  showCustomerAddress: z.boolean().default(DEFAULT_ORDER_TEMPLATE_CONFIG.showCustomerAddress),
+  showSignatureBlock: z.boolean().default(DEFAULT_ORDER_TEMPLATE_CONFIG.showSignatureBlock),
+});
+
+const orderTemplateSchema = z.object({
+  id: z.string().uuid().optional().or(z.literal("")),
+  name: z.string().min(1).max(120),
+  layout: z.enum(["clean", "bold", "classic", "receipt"]),
+  isDefault: z
+    .union([z.literal("on"), z.literal("true"), z.literal("false"), z.boolean()])
+    .optional()
+    .transform((v) => v === true || v === "on" || v === "true"),
+  config: orderTemplateConfigSchema,
+});
+
+async function ensureOrderTemplateDefault(orgId: string, fallbackTemplateId: string) {
+  const defaults = await db
+    .select({ id: schema.orderTemplates.id })
+    .from(schema.orderTemplates)
+    .where(and(eq(schema.orderTemplates.orgId, orgId), eq(schema.orderTemplates.isDefault, true)))
+    .limit(1);
+  if (!defaults.length) {
+    await db
+      .update(schema.orderTemplates)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.orderTemplates.orgId, orgId),
+          eq(schema.orderTemplates.id, fallbackTemplateId),
+        ),
+      );
+  }
+}
+
+export async function saveOrderTemplate(input: z.input<typeof orderTemplateSchema>) {
+  const { org, role } = await requireActiveOrg();
+  assertCan(role as Role, "template.manage");
+  const parsed = orderTemplateSchema.parse(input);
+
+  try {
+    if (parsed.isDefault) {
+      await db
+        .update(schema.orderTemplates)
+        .set({ isDefault: false })
+        .where(eq(schema.orderTemplates.orgId, org.id));
+    }
+
+    if (parsed.id) {
+      await db
+        .update(schema.orderTemplates)
+        .set({
+          name: parsed.name,
+          layout: parsed.layout,
+          isDefault: parsed.isDefault ?? false,
+          config: parsed.config,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(schema.orderTemplates.orgId, org.id), eq(schema.orderTemplates.id, parsed.id)),
+        );
+      await ensureOrderTemplateDefault(org.id, parsed.id);
+      revalidatePath("/settings/templates");
+      revalidatePath("/orders");
+      return { id: parsed.id };
+    }
+
+    const [row] = await db
+      .insert(schema.orderTemplates)
+      .values({
+        orgId: org.id,
+        name: parsed.name,
+        layout: parsed.layout,
+        isDefault: parsed.isDefault ?? false,
+        config: parsed.config,
+      })
+      .returning({ id: schema.orderTemplates.id });
+
+    await ensureOrderTemplateDefault(org.id, row.id);
+    revalidatePath("/settings/templates");
+    revalidatePath("/orders");
+    return { id: row.id };
+  } catch (error) {
+    if (isMissingOrderTemplatesTable(error)) {
+      throw new Error(ORDER_TEMPLATES_MIGRATION_MESSAGE);
+    }
+    throw error;
+  }
 }

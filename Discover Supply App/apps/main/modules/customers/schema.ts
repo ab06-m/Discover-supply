@@ -32,6 +32,7 @@ export const customers = pgTable(
   },
   (t) => ({
     orgIdx: index("customers_org_idx").on(t.orgId),
+    orgCreatedIdx: index("customers_org_created_idx").on(t.orgId, t.createdAt),
     storeCodeIdx: uniqueIndex("customers_org_store_code_idx")
       .on(t.orgId, t.storeCode),
   }),

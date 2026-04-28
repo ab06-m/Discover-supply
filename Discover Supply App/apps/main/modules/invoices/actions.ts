@@ -8,6 +8,7 @@ import { db, schema } from "@/lib/db";
 import { requireActiveOrg } from "@/lib/auth";
 import { assertCan, type Role } from "@/lib/permissions";
 import { generateDocNumber } from "@/modules/inventory/lib/generate-number";
+import { DEFAULT_INVOICE_TEMPLATE_CONFIG } from "./schema";
 
 const createFromOrderSchema = z.object({
   orderId: z.string().uuid(),
@@ -187,16 +188,73 @@ export async function recordPayment(input: z.input<typeof paymentSchema>) {
   revalidatePath("/invoices");
 }
 
+const optionalTemplateText = z
+  .string()
+  .max(2000)
+  .optional()
+  .or(z.literal(""))
+  .transform((v) => (v ? v : undefined));
+
+const templateConfigSchema = z.object({
+  brandColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default(DEFAULT_INVOICE_TEMPLATE_CONFIG.brandColor),
+  accentColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default(DEFAULT_INVOICE_TEMPLATE_CONFIG.accentColor),
+  fontFamily: z.enum(["sans", "serif", "mono"]).default(DEFAULT_INVOICE_TEMPLATE_CONFIG.fontFamily),
+  showLogo: z.boolean().default(DEFAULT_INVOICE_TEMPLATE_CONFIG.showLogo),
+  logoUrl: z
+    .string()
+    .max(500)
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : undefined)),
+  headerText: optionalTemplateText,
+  footerText: optionalTemplateText,
+  termsText: optionalTemplateText,
+  showTaxBreakdown: z.boolean().default(DEFAULT_INVOICE_TEMPLATE_CONFIG.showTaxBreakdown),
+  showPaymentInstructions: z
+    .boolean()
+    .default(DEFAULT_INVOICE_TEMPLATE_CONFIG.showPaymentInstructions),
+  paymentInstructions: optionalTemplateText,
+  dateFormat: z.enum(["us", "iso", "eu"]).default(DEFAULT_INVOICE_TEMPLATE_CONFIG.dateFormat),
+  showDueDate: z.boolean().default(DEFAULT_INVOICE_TEMPLATE_CONFIG.showDueDate),
+  showOrderNumber: z.boolean().default(DEFAULT_INVOICE_TEMPLATE_CONFIG.showOrderNumber),
+});
+
 const templateSchema = z.object({
   id: z.string().uuid().optional().or(z.literal("")),
   name: z.string().min(1).max(120),
   layout: z.enum(["clean", "bold", "minimal", "classic", "receipt"]),
   isDefault: z
-    .union([z.literal("on"), z.literal("true"), z.boolean()])
+    .union([z.literal("on"), z.literal("true"), z.literal("false"), z.boolean()])
     .optional()
-    .transform((v) => (v === undefined ? false : Boolean(v))),
-  config: z.any(),
+    .transform((v) => v === true || v === "on" || v === "true"),
+  config: templateConfigSchema,
 });
+
+async function ensureTemplateDefault(orgId: string, fallbackTemplateId: string) {
+  const defaults = await db
+    .select({ id: schema.invoiceTemplates.id })
+    .from(schema.invoiceTemplates)
+    .where(and(eq(schema.invoiceTemplates.orgId, orgId), eq(schema.invoiceTemplates.isDefault, true)))
+    .limit(1);
+
+  if (!defaults.length) {
+    await db
+      .update(schema.invoiceTemplates)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.invoiceTemplates.orgId, orgId),
+          eq(schema.invoiceTemplates.id, fallbackTemplateId),
+        ),
+      );
+  }
+}
 
 export async function saveInvoiceTemplate(input: z.input<typeof templateSchema>) {
   const { org, role } = await requireActiveOrg();
@@ -223,7 +281,10 @@ export async function saveInvoiceTemplate(input: z.input<typeof templateSchema>)
       .where(
         and(eq(schema.invoiceTemplates.orgId, org.id), eq(schema.invoiceTemplates.id, parsed.id)),
       );
+    await ensureTemplateDefault(org.id, parsed.id);
     revalidatePath("/settings/templates");
+    revalidatePath("/settings");
+    revalidatePath("/invoices");
     return { id: parsed.id };
   }
 
@@ -238,6 +299,9 @@ export async function saveInvoiceTemplate(input: z.input<typeof templateSchema>)
     })
     .returning({ id: schema.invoiceTemplates.id });
 
+  await ensureTemplateDefault(org.id, row.id);
   revalidatePath("/settings/templates");
+  revalidatePath("/settings");
+  revalidatePath("/invoices");
   return { id: row.id };
 }

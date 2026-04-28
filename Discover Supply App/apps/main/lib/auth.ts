@@ -7,10 +7,19 @@ import { cookies } from "next/headers";
 
 export const ACTIVE_ORG_COOKIE = "active_org_id";
 
+export type AuthUser = {
+  id: string;
+  email?: string | null;
+};
+
 export const getAuthUser = cache(async () => {
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  const { data } = await supabase.auth.getClaims();
+  if (!data?.claims.sub) return null;
+  return {
+    id: data.claims.sub,
+    email: data.claims.email ?? null,
+  } satisfies AuthUser;
 });
 
 export async function requireUser() {

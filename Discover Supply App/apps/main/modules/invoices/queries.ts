@@ -1,11 +1,13 @@
 import { db, schema } from "@/lib/db";
 import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 
+const DEFAULT_LIST_LIMIT = 100;
+
 export async function listInvoices(
   orgId: string,
-  opts: { search?: string; status?: string; customerId?: string } = {},
+  opts: { search?: string; status?: string; customerId?: string; limit?: number } = {},
 ) {
-  const { search, status, customerId } = opts;
+  const { search, status, customerId, limit = DEFAULT_LIST_LIMIT } = opts;
   const conditions = [eq(schema.invoices.orgId, orgId)];
   if (status) conditions.push(eq(schema.invoices.status, status as any));
   if (customerId) conditions.push(eq(schema.invoices.customerId, customerId));
@@ -33,7 +35,8 @@ export async function listInvoices(
     .from(schema.invoices)
     .leftJoin(schema.customers, eq(schema.customers.id, schema.invoices.customerId))
     .where(and(...conditions))
-    .orderBy(desc(schema.invoices.createdAt));
+    .orderBy(desc(schema.invoices.createdAt))
+    .limit(limit);
 }
 
 export async function getInvoice(orgId: string, id: string) {

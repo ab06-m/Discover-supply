@@ -34,7 +34,8 @@ export default async function PortalInvoices({
     .select()
     .from(schema.invoices)
     .where(and(...conds))
-    .orderBy(desc(schema.invoices.createdAt));
+    .orderBy(desc(schema.invoices.createdAt))
+    .limit(100);
 
   return (
     <div className="space-y-4">

@@ -51,7 +51,14 @@ export const dispatches = pgTable(
   },
   (t) => ({
     orgIdx: index("dispatches_org_idx").on(t.orgId),
+    orgScheduledIdx: index("dispatches_org_scheduled_idx").on(t.orgId, t.scheduledAt),
+    orgStatusScheduledIdx: index("dispatches_org_status_scheduled_idx").on(
+      t.orgId,
+      t.status,
+      t.scheduledAt,
+    ),
     driverIdx: index("dispatches_driver_idx").on(t.driverId),
+    driverScheduledIdx: index("dispatches_driver_scheduled_idx").on(t.driverId, t.scheduledAt),
     orderIdx: index("dispatches_order_idx").on(t.orderId),
   }),
 );

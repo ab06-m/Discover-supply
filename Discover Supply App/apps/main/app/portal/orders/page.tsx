@@ -33,7 +33,8 @@ export default async function PortalOrders() {
         eq(schema.orders.customerId, active.contact.customerId),
       ),
     )
-    .orderBy(desc(schema.orders.createdAt));
+    .orderBy(desc(schema.orders.createdAt))
+    .limit(100);
 
   return (
     <div className="space-y-4">

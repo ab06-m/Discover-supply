@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Pencil, Plus } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
-import { getCustomer, listCustomers } from "@/modules/customers/queries";
+import { getCustomer, listCustomerSummaries } from "@/modules/customers/queries";
 import { db, schema } from "@/lib/db";
 import { and, desc, eq } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ export default async function CustomerDetailPage({
   const { id } = await params;
   const [customer, allCustomers] = await Promise.all([
     getCustomer(org.id, id),
-    listCustomers(org.id, { includeInactive: true }),
+    listCustomerSummaries(org.id, { includeInactive: true }),
   ]);
   if (!customer) notFound();
 

@@ -1,9 +1,11 @@
 import { db, schema } from "@/lib/db";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
+const DEFAULT_LIST_LIMIT = 100;
+
 export async function listDispatches(
   orgId: string,
-  opts: { status?: string; driverId?: string } = {},
+  opts: { status?: string; driverId?: string; limit?: number } = {},
 ) {
   const conditions = [eq(schema.dispatches.orgId, orgId)];
   if (opts.status) conditions.push(eq(schema.dispatches.status, opts.status as any));
@@ -32,7 +34,8 @@ export async function listDispatches(
       asc(schema.dispatches.scheduledAt),
       asc(schema.dispatches.routeSequence),
       desc(schema.dispatches.createdAt),
-    );
+    )
+    .limit(opts.limit ?? DEFAULT_LIST_LIMIT);
 }
 
 export async function getDispatch(orgId: string, id: string) {

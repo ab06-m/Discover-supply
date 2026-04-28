@@ -1,11 +1,13 @@
 import { db, schema } from "@/lib/db";
 import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 
+const DEFAULT_LIST_LIMIT = 100;
+
 export async function listOrders(
   orgId: string,
-  opts: { search?: string; stageId?: string; customerId?: string } = {},
+  opts: { search?: string; stageId?: string; customerId?: string; limit?: number } = {},
 ) {
-  const { search, stageId, customerId } = opts;
+  const { search, stageId, customerId, limit = DEFAULT_LIST_LIMIT } = opts;
 
   const conditions = [eq(schema.orders.orgId, orgId)];
   if (stageId) conditions.push(eq(schema.orders.stageId, stageId));
@@ -38,7 +40,8 @@ export async function listOrders(
     .leftJoin(schema.orderStages, eq(schema.orderStages.id, schema.orders.stageId))
     .leftJoin(schema.customers, eq(schema.customers.id, schema.orders.customerId))
     .where(and(...conditions))
-    .orderBy(desc(schema.orders.createdAt));
+    .orderBy(desc(schema.orders.createdAt))
+    .limit(limit);
 }
 
 export async function getOrder(orgId: string, id: string) {

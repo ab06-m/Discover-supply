@@ -6,6 +6,7 @@ import { Search, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarcodeScanner, BarcodeScanButton } from "./barcode-scanner";
 import { lookupByBarcode, receiveStock } from "../actions";
@@ -122,7 +123,7 @@ export function ReceiveForm({ searchAction }: Props) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <Card>
+      <Card className="shadow-card">
         <CardHeader>
           <CardTitle>Add items</CardTitle>
         </CardHeader>
@@ -226,7 +227,7 @@ export function ReceiveForm({ searchAction }: Props) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="shadow-card">
         <CardHeader>
           <CardTitle>Receipt details (optional)</CardTitle>
         </CardHeader>
@@ -249,12 +250,11 @@ export function ReceiveForm({ searchAction }: Props) {
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="notes">Notes</Label>
-            <textarea
+            <Textarea
               id="notes"
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full rounded-md border border-input bg-background p-3 text-sm"
             />
           </div>
         </CardContent>

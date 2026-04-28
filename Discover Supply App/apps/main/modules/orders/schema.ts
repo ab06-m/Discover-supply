@@ -11,6 +11,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { organizations } from "../_core/schema";
 import { customers } from "../customers/schema";
 import { products } from "../inventory/schema";
@@ -73,6 +74,12 @@ export const orders = pgTable(
   },
   (t) => ({
     orgIdx: index("orders_org_idx").on(t.orgId),
+    orgCreatedIdx: index("orders_org_created_idx").on(t.orgId, t.createdAt),
+    orgStageCreatedIdx: index("orders_org_stage_created_idx").on(
+      t.orgId,
+      t.stageId,
+      t.createdAt,
+    ),
     stageIdx: index("orders_stage_idx").on(t.stageId),
     customerIdx: index("orders_customer_idx").on(t.customerId),
     numberUnique: uniqueIndex("orders_org_number_unique").on(t.orgId, t.number),
@@ -127,7 +134,58 @@ export const orderStageHistory = pgTable(
   }),
 );
 
+// Sales-order print templates — multiple per org, mirrors invoice template pattern.
+// Layout selects the renderer; config holds colors/logo/footer/visibility flags.
+export const orderTemplates = pgTable(
+  "order_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    layout: text("layout").notNull().default("clean"), // 'clean' | 'bold' | 'classic' | 'receipt'
+    isDefault: boolean("is_default").notNull().default(false),
+    config: jsonb("config")
+      .$type<OrderTemplateConfig>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({ orgIdx: index("order_templates_org_idx").on(t.orgId) }),
+);
+
+export type OrderTemplateConfig = {
+  brandColor: string;
+  accentColor: string;
+  fontFamily: "sans" | "serif" | "mono";
+  showLogo: boolean;
+  logoUrl?: string;
+  headerText?: string;
+  footerText?: string;
+  termsText?: string;
+  showTaxBreakdown: boolean;
+  dateFormat: "us" | "iso" | "eu";
+  showOrderNumber: boolean;
+  showCustomerAddress: boolean;
+  showSignatureBlock: boolean;
+};
+
+export const DEFAULT_ORDER_TEMPLATE_CONFIG: OrderTemplateConfig = {
+  brandColor: "#1e40af",
+  accentColor: "#3b82f6",
+  fontFamily: "sans",
+  showLogo: true,
+  showTaxBreakdown: true,
+  dateFormat: "us",
+  showOrderNumber: true,
+  showCustomerAddress: true,
+  showSignatureBlock: false,
+};
+
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type OrderStage = typeof orderStages.$inferSelect;
+export type OrderTemplate = typeof orderTemplates.$inferSelect;
 export type StageEffect = (typeof stageEffect.enumValues)[number];

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Plus } from "lucide-react";
 import { getActiveOrg } from "@/lib/auth";
-import { Sidebar } from "@/components/app/sidebar";
+import { Sidebar, MobileSidebar } from "@/components/app/sidebar";
 import { OrgSwitcher } from "@/components/app/org-switcher";
 import { UserMenu } from "@/components/app/user-menu";
 
@@ -10,19 +11,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!org) redirect("/onboarding");
 
   return (
-    <div className="flex min-h-screen bg-muted/20">
+    <div className="flex min-h-screen bg-background">
       <Sidebar orgName={org.name} />
       <div className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b bg-background px-4">
-          <OrgSwitcher memberships={memberships} activeOrgId={org.id} />
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b bg-card px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <Link href="/orders/new" className="hidden text-sm font-medium underline-offset-4 hover:underline sm:inline">
-              + New order
+            <MobileSidebar orgName={org.name} />
+            <OrgSwitcher memberships={memberships} activeOrgId={org.id} />
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/orders/new"
+              className="hidden h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 sm:inline-flex"
+            >
+              <Plus className="h-4 w-4" />
+              New order
             </Link>
             <UserMenu email={user.email ?? ""} role={role ?? "office"} />
           </div>
         </header>
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );

@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText, Truck } from "lucide-react";
+import { FileText, Printer, Truck } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
 import { getOrder, listStages } from "@/modules/orders/queries";
 import { StagePipeline } from "@/modules/orders/components/stage-pipeline";
+import {
+  ensureOrderTemplatePresets,
+} from "@/modules/orders/template-presets";
+import { listOrderTemplates } from "@/modules/orders/template-queries";
 import { createDispatch } from "@/modules/dispatch/actions";
 import { db, schema } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
@@ -20,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader } from "@/components/app/page-header";
 import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +37,12 @@ export default async function OrderDetailPage({
   const { org, role } = await requireActiveOrg();
   const { id } = await params;
 
-  const [record, stages] = await Promise.all([getOrder(org.id, id), listStages(org.id)]);
+  await ensureOrderTemplatePresets(org.id);
+  const [record, stages, templates] = await Promise.all([
+    getOrder(org.id, id),
+    listStages(org.id),
+    listOrderTemplates(org.id),
+  ]);
   if (!record) notFound();
 
   const { order, stage, customer, items, history } = record;
@@ -54,62 +64,83 @@ export default async function OrderDetailPage({
   }
 
   const balance = parseFloat(order.total) - parseFloat(order.amountPaid);
+  const defaultTemplate = templates.find((t) => t.isDefault) ?? templates[0];
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Link
-          href="/orders"
-          className="inline-flex items-center text-sm text-muted-foreground hover:underline"
-        >
-          <ArrowLeft className="mr-1 h-4 w-4" /> Back to orders
-        </Link>
-      </div>
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{order.number}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            {customer ? (
-              <Link href={`/customers/${customer.id}`} className="hover:underline">
-                {customer.name}
-                {customer.storeCode && ` · ${customer.storeCode}`}
-              </Link>
-            ) : (
-              <span>Walk-in</span>
-            )}
-            <span>· {new Date(order.createdAt).toLocaleDateString()}</span>
-            <Badge variant="outline" className="uppercase">
-              {order.source}
-            </Badge>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {canDispatch &&
-            (existingDispatch.length ? (
-              <Button asChild variant="outline">
-                <Link href={`/delivery/${existingDispatch[0].id}`}>
-                  <Truck className="mr-2 h-4 w-4" /> View delivery
+    <div className="space-y-6">
+      <PageHeader
+        backHref="/orders"
+        backLabel="Back to orders"
+        title={order.number}
+        subtitle={
+          customer
+            ? `${customer.name}${customer.storeCode ? ` · ${customer.storeCode}` : ""}`
+            : "Walk-in customer"
+        }
+        actions={
+          <>
+            {templates.length > 0 ? (
+              <details className="relative">
+                <summary className="inline-flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-md border bg-card px-3 text-sm font-medium shadow-sm hover:bg-accent">
+                  <Printer className="h-4 w-4" />
+                  Print
+                </summary>
+                <div className="absolute right-0 top-10 z-20 w-56 overflow-hidden rounded-md border bg-card shadow-card-hover">
+                  {templates.map((t) => (
+                    <Link
+                      key={t.id}
+                      href={`/orders/${order.id}/print?template=${t.id}`}
+                      target="_blank"
+                      className="flex items-center justify-between px-3 py-2 text-sm hover:bg-accent"
+                    >
+                      <span>{t.name}</span>
+                      {t.id === defaultTemplate?.id && (
+                        <span className="text-xs text-muted-foreground">Default</span>
+                      )}
+                    </Link>
+                  ))}
+                  <Link
+                    href="/settings/templates?type=order"
+                    className="block border-t px-3 py-2 text-xs text-muted-foreground hover:bg-accent"
+                  >
+                    Manage templates
+                  </Link>
+                </div>
+              </details>
+            ) : null}
+            {canDispatch &&
+              (existingDispatch.length ? (
+                <Button asChild variant="outline">
+                  <Link href={`/delivery/${existingDispatch[0].id}`}>
+                    <Truck className="mr-2 h-4 w-4" /> View delivery
+                  </Link>
+                </Button>
+              ) : (
+                <form action={scheduleDispatch}>
+                  <Button type="submit" variant="outline">
+                    <Truck className="mr-2 h-4 w-4" /> Schedule delivery
+                  </Button>
+                </form>
+              ))}
+            {canInvoice && (
+              <Button asChild>
+                <Link href={`/invoices/new?order=${order.id}`}>
+                  <FileText className="mr-2 h-4 w-4" /> Create invoice
                 </Link>
               </Button>
-            ) : (
-              <form action={scheduleDispatch}>
-                <Button type="submit" variant="outline">
-                  <Truck className="mr-2 h-4 w-4" /> Schedule delivery
-                </Button>
-              </form>
-            ))}
-          {canInvoice && (
-            <Button asChild variant="outline">
-              <Link href={`/invoices/new?order=${order.id}`}>
-                <FileText className="mr-2 h-4 w-4" /> Create invoice
-              </Link>
-            </Button>
-          )}
-        </div>
+            )}
+          </>
+        }
+      />
+
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <span>{new Date(order.createdAt).toLocaleDateString()}</span>
+        <Badge variant="outline" className="uppercase">
+          {order.source}
+        </Badge>
       </div>
 
-      <Card>
+      <Card className="shadow-card">
         <CardHeader>
           <CardTitle>Pipeline</CardTitle>
         </CardHeader>
@@ -123,8 +154,8 @@ export default async function OrderDetailPage({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="md:col-span-2">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="shadow-card lg:col-span-2">
           <CardHeader>
             <CardTitle>Items</CardTitle>
           </CardHeader>
@@ -143,9 +174,7 @@ export default async function OrderDetailPage({
                   <TableRow key={it.id}>
                     <TableCell>
                       <div className="font-medium">{it.name}</div>
-                      {it.sku && (
-                        <div className="text-xs text-muted-foreground">{it.sku}</div>
-                      )}
+                      {it.sku && <div className="text-xs text-muted-foreground">{it.sku}</div>}
                     </TableCell>
                     <TableCell>{it.quantity}</TableCell>
                     <TableCell className="text-right">
@@ -168,7 +197,7 @@ export default async function OrderDetailPage({
         </Card>
 
         <div className="space-y-4">
-          <Card>
+          <Card className="shadow-card">
             <CardHeader>
               <CardTitle>Totals</CardTitle>
             </CardHeader>
@@ -214,7 +243,7 @@ export default async function OrderDetailPage({
           </Card>
 
           {history.length > 0 && (
-            <Card>
+            <Card className="shadow-card">
               <CardHeader>
                 <CardTitle>History</CardTitle>
               </CardHeader>
@@ -229,9 +258,7 @@ export default async function OrderDetailPage({
                           style={{ backgroundColor: to?.color ?? "#64748b" }}
                         />
                         <div>
-                          <div className="font-medium">
-                            {to?.name ?? "Unknown stage"}
-                          </div>
+                          <div className="font-medium">{to?.name ?? "Unknown stage"}</div>
                           <div className="text-muted-foreground">
                             {new Date(h.createdAt).toLocaleString()}
                           </div>

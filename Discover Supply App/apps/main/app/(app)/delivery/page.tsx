@@ -1,22 +1,27 @@
 import Link from "next/link";
-import { Package, MapPin } from "lucide-react";
+import { MapPin, Package, Route } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
 import { listDispatches } from "@/modules/dispatch/queries";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatMoney } from "@/lib/utils";
+import { Select } from "@/components/ui/select";
+import { PageHeader } from "@/components/app/page-header";
+import { EmptyState } from "@/components/app/empty-state";
+import { cn, formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-slate-100 text-slate-700",
-  assigned: "bg-blue-100 text-blue-700",
-  loaded: "bg-violet-100 text-violet-700",
-  in_transit: "bg-amber-100 text-amber-700",
-  delivered: "bg-emerald-100 text-emerald-700",
-  failed: "bg-rose-100 text-rose-700",
-  returned: "bg-slate-200 text-slate-500",
+  pending: "bg-muted text-muted-foreground",
+  assigned: "bg-primary/10 text-primary",
+  loaded: "bg-accent text-accent-foreground",
+  in_transit: "bg-warning/10 text-warning",
+  delivered: "bg-success/10 text-success",
+  failed: "bg-destructive/10 text-destructive",
+  returned: "bg-secondary text-secondary-foreground",
 };
+
+type DispatchRow = Awaited<ReturnType<typeof listDispatches>>[number];
 
 export default async function DeliveryPage({
   searchParams,
@@ -36,51 +41,57 @@ export default async function DeliveryPage({
   const completed = rows.filter((r) => r.status === "delivered" || r.status === "returned");
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          {role === "driver" ? "My route" : "Delivery"}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {active.length} active · {completed.length} completed
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={role === "driver" ? "My route" : "Delivery"}
+        subtitle={`${active.length} active - ${completed.length} completed`}
+      />
 
       {role !== "driver" && (
-        <form className="flex gap-2">
-          <select
-            name="status"
-            defaultValue={status ?? ""}
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
+        <form className="w-48">
+          <Select name="status" defaultValue={status ?? ""}>
             <option value="">All statuses</option>
             {Object.keys(STATUS_COLORS).map((s) => (
               <option key={s} value={s}>
                 {s.replace("_", " ")}
               </option>
             ))}
-          </select>
+          </Select>
         </form>
       )}
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase text-muted-foreground">Active</h2>
-        {active.length === 0 && (
-          <p className="text-sm text-muted-foreground">No active deliveries.</p>
-        )}
-        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-          {active.map((d) => (
-            <DispatchCard key={d.id} d={d} currency={org.currency} />
-          ))}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold uppercase text-muted-foreground">Active</h2>
+          <span className="text-sm text-muted-foreground">{active.length}</span>
         </div>
+        {active.length === 0 ? (
+          <EmptyState
+            icon={Route}
+            title="No active deliveries"
+            description={
+              role === "driver"
+                ? "New assignments will appear here when they are ready for your route."
+                : "Assigned, loaded, and in-transit deliveries will appear here."
+            }
+            className="py-10"
+          />
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {active.map((d) => (
+              <DispatchCard key={d.id} d={d} currency={org.currency} />
+            ))}
+          </div>
+        )}
       </section>
 
       {completed.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold uppercase text-muted-foreground">
-            Completed
-          </h2>
-          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase text-muted-foreground">Completed</h2>
+            <span className="text-sm text-muted-foreground">{completed.length}</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {completed.slice(0, 12).map((d) => (
               <DispatchCard key={d.id} d={d} currency={org.currency} />
             ))}
@@ -91,49 +102,45 @@ export default async function DeliveryPage({
   );
 }
 
-function DispatchCard({
-  d,
-  currency,
-}: {
-  d: any;
-  currency: string;
-}) {
+function DispatchCard({ d, currency }: { d: DispatchRow; currency: string }) {
   const addr = d.deliveryAddress as {
     line1?: string;
     city?: string;
     state?: string;
   } | null;
+
   return (
-    <Link href={`/delivery/${d.id}`}>
-      <Card className="transition hover:border-primary">
-        <CardContent className="space-y-2 p-4">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <div className="font-semibold">{d.orderNumber}</div>
+    <Link href={`/delivery/${d.id}`} className="block">
+      <Card className="h-full shadow-card transition hover:border-primary hover:shadow-card-hover">
+        <CardContent className="space-y-3 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate font-semibold">{d.orderNumber}</div>
               <div className="text-sm text-muted-foreground">
-                {d.customerName ?? "—"}
-                {d.storeCode && ` · ${d.storeCode}`}
+                {d.customerName ?? "-"}
+                {d.storeCode && ` - ${d.storeCode}`}
               </div>
             </div>
             <Badge
-              className={`text-xs uppercase ${STATUS_COLORS[d.status] ?? ""}`}
+              className={cn("shrink-0 text-xs uppercase", STATUS_COLORS[d.status] ?? "")}
               variant="secondary"
             >
               {d.status.replace("_", " ")}
             </Badge>
           </div>
           {addr?.line1 && (
-            <div className="flex items-start gap-1 text-xs text-muted-foreground">
-              <MapPin className="mt-0.5 h-3 w-3 flex-shrink-0" />
+            <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
                 {addr.line1}
-                {(addr.city || addr.state) && `, ${[addr.city, addr.state].filter(Boolean).join(", ")}`}
+                {(addr.city || addr.state) &&
+                  `, ${[addr.city, addr.state].filter(Boolean).join(", ")}`}
               </span>
             </div>
           )}
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center justify-between gap-3 text-xs">
             <span className="inline-flex items-center gap-1 text-muted-foreground">
-              <Package className="h-3 w-3" />
+              <Package className="h-3.5 w-3.5" />
               {formatMoney(d.total, currency)}
             </span>
             {d.scheduledAt && (

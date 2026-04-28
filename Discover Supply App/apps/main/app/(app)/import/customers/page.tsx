@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
-import Papa from "papaparse";
-import { Upload, CheckCircle, XCircle, ArrowLeft } from "lucide-react";
+import { useRef, useState } from "react";
 import Link from "next/link";
+import Papa from "papaparse";
+import { CheckCircle, Upload, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -13,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader } from "@/components/app/page-header";
 import { importCustomers } from "@/modules/import/actions";
 import type { CustomerImportRow, ImportResult } from "@/modules/import/types";
 
@@ -64,22 +66,16 @@ export default function ImportCustomersPage() {
   const preview = rows.slice(0, 10);
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <div className="flex items-center gap-3">
-        <Link href="/import" className="text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Import Customers</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Upload a KyteApp customers CSV. Duplicates (by ID or name) are skipped automatically.
-          </p>
-        </div>
-      </div>
+    <div className="max-w-5xl space-y-6">
+      <PageHeader
+        title="Import customers"
+        subtitle="Upload a KyteApp customers CSV. Duplicates by ID or name are skipped automatically."
+        backHref="/import"
+        backLabel="Import"
+      />
 
-      {/* Drop zone */}
-      <div
-        className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-10 text-center cursor-pointer hover:border-primary/60 transition-colors"
+      <Card
+        className="flex cursor-pointer flex-col items-center justify-center gap-3 border-dashed p-10 text-center shadow-card transition hover:border-primary"
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
@@ -88,7 +84,9 @@ export default function ImportCustomersPage() {
           if (file) handleFile(file);
         }}
       >
-        <Upload className="h-8 w-8 text-muted-foreground" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Upload className="h-6 w-6" />
+        </div>
         <div>
           <p className="font-medium">{fileName || "Click or drag a CSV file here"}</p>
           <p className="text-sm text-muted-foreground">
@@ -105,21 +103,20 @@ export default function ImportCustomersPage() {
             if (f) handleFile(f);
           }}
         />
-      </div>
+      </Card>
 
       {parseError && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
           {parseError}
         </div>
       )}
 
-      {/* Preview table */}
       {preview.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="font-semibold text-sm">
-            Preview — first {preview.length} of {rows.length} rows
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase text-muted-foreground">
+            Preview - first {preview.length} of {rows.length} rows
           </h2>
-          <div className="overflow-x-auto rounded-md border">
+          <Card className="overflow-x-auto shadow-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -131,65 +128,61 @@ export default function ImportCustomersPage() {
               <TableBody>
                 {preview.map((row, i) => (
                   <TableRow key={i}>
-                    <TableCell className="font-mono text-xs">{row.ID || "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{row.ID || "-"}</TableCell>
                     <TableCell className="font-medium">{row.Name}</TableCell>
-                    <TableCell>{row.Phone || "—"}</TableCell>
-                    <TableCell>{row.Email || "—"}</TableCell>
+                    <TableCell>{row.Phone || "-"}</TableCell>
+                    <TableCell>{row.Email || "-"}</TableCell>
                     <TableCell className="max-w-xs truncate text-muted-foreground">
-                      {row.Address || "—"}
+                      {row.Address || "-"}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-muted-foreground">
-                      {row.Notes || "—"}
+                      {row.Notes || "-"}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </Card>
           {rows.length > 10 && (
-            <p className="text-xs text-muted-foreground">… and {rows.length - 10} more rows</p>
+            <p className="text-xs text-muted-foreground">... and {rows.length - 10} more rows</p>
           )}
         </div>
       )}
 
       {rows.length > 0 && !result && (
         <Button onClick={handleImport} disabled={loading}>
-          {loading ? "Importing…" : `Import ${rows.length} customers`}
+          {loading ? "Importing..." : `Import ${rows.length} customers`}
         </Button>
       )}
 
       {result && (
-        <div className="rounded-md border bg-background p-4 space-y-3">
+        <Card className="space-y-3 p-4 shadow-card">
           <div className="flex items-center gap-2 font-medium">
-            <CheckCircle className="h-4 w-4 text-green-600" />
+            <CheckCircle className="h-4 w-4 text-success" />
             Import complete
           </div>
-          <ul className="text-sm space-y-1">
+          <ul className="space-y-1 text-sm">
             <li>
-              <span className="font-medium text-green-700">{result.imported}</span> customer
+              <span className="font-medium text-success">{result.imported}</span> customer
               {result.imported === 1 ? "" : "s"} imported
             </li>
-            <li className="text-muted-foreground">
-              {result.skipped} skipped — already exist
-            </li>
+            <li className="text-muted-foreground">{result.skipped} skipped - already exist</li>
           </ul>
           {result.errors.length > 0 && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 space-y-1">
+            <div className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               <div className="flex items-center gap-1 font-medium">
                 <XCircle className="h-4 w-4" />
                 {result.errors.length} error{result.errors.length === 1 ? "" : "s"}
               </div>
-              <ul className="list-disc list-inside space-y-0.5">
+              <ul className="list-inside list-disc space-y-0.5">
                 {result.errors.slice(0, 10).map((e, i) => (
                   <li key={i}>{e}</li>
                 ))}
-                {result.errors.length > 10 && (
-                  <li>… and {result.errors.length - 10} more</li>
-                )}
+                {result.errors.length > 10 && <li>... and {result.errors.length - 10} more</li>}
               </ul>
             </div>
           )}
-          <div className="flex gap-2 pt-1">
+          <div className="flex flex-wrap gap-2 pt-1">
             <Button
               variant="outline"
               onClick={() => {
@@ -204,7 +197,7 @@ export default function ImportCustomersPage() {
               <Link href="/customers">View customers</Link>
             </Button>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

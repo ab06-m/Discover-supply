@@ -2,6 +2,7 @@ import { requireActiveOrg } from "@/lib/auth";
 import { assertCan, type Role } from "@/lib/permissions";
 import { listProducts } from "@/modules/inventory/queries";
 import { ReceiveForm } from "@/modules/inventory/components/receive-form";
+import { PageHeader } from "@/components/app/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +20,11 @@ export default async function CheckInPage() {
 
   void org; // org context already validated
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Check in stock</h1>
-        <p className="text-sm text-muted-foreground">
-          Scan barcodes or search products to receive a shipment into inventory.
-        </p>
-      </div>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <PageHeader
+        title="Check in stock"
+        subtitle="Scan barcodes or search products to receive a shipment into inventory."
+      />
       <ReceiveForm searchAction={searchAction} />
     </div>
   );

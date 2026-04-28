@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireActiveOrg } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -7,6 +8,7 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getInventorySettings } from "@/modules/inventory/lib/stock-rules";
+import { PageHeader } from "@/components/app/page-header";
 
 export default async function SettingsPage() {
   const { org } = await requireActiveOrg();
@@ -72,20 +74,15 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your organization settings and preferences.
-        </p>
-      </div>
+      <PageHeader title="Settings" subtitle="Manage your organization settings and preferences." />
 
       <div className="grid gap-6">
-        <Card>
+        <Card className="shadow-card">
           <form action={updateOrg}>
             <CardHeader>
               <CardTitle>Organization Profile</CardTitle>
               <CardDescription>
-                This is your organization's visible information.
+                This is your organization&apos;s visible information.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -130,7 +127,22 @@ export default async function SettingsPage() {
           </form>
         </Card>
 
-        <Card>
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle>Invoice Templates</CardTitle>
+            <CardDescription>
+              Manage the four invoice designs, colors, merge fields, payment text, and default
+              template.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/settings/templates">Manage invoice templates</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card">
           <form action={updateInventoryRules}>
             <CardHeader>
               <CardTitle>Inventory Rules</CardTitle>
@@ -162,7 +174,7 @@ export default async function SettingsPage() {
           </form>
         </Card>
 
-        <Card>
+        <Card className="border-destructive/30 shadow-card">
           <CardHeader>
             <CardTitle>Danger Zone</CardTitle>
             <CardDescription>
