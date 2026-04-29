@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: #f1f2f5; padding: 20px; }
+  .row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  .token { background: white; border: 1px solid #e2e6ec; border-radius: 8px; padding: 10px 12px; text-align: center; }
+  .box { background: hsl(221 83% 53%); border-radius: 4px; margin: 0 auto 6px; }
+  .name { font-size: 10px; font-weight: 600; color: #0f172a; }
+  .val { font-size: 9px; color: #6b7280; margin-top: 1px; }
+  .radii { display: flex; gap: 8px; flex-wrap: wrap; }
+  .radius-demo { background: white; border: 1px solid #e2e6ec; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+  .rbox { width: 32px; height: 32px; background: hsl(221 83% 53%); }
+</style>
+</head>
+<body>
+<div style="display:flex;gap:24px;flex-wrap:wrap;">
+  <div>
+    <div style="font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Spacing Scale</div>
+    <div class="row">
+      <div class="token"><div class="box" style="width:4px;height:4px;"></div><div class="name">1</div><div class="val">4px</div></div>
+      <div class="token"><div class="box" style="width:8px;height:8px;"></div><div class="name">2</div><div class="val">8px</div></div>
+      <div class="token"><div class="box" style="width:12px;height:12px;"></div><div class="name">3</div><div class="val">12px</div></div>
+      <div class="token"><div class="box" style="width:16px;height:16px;"></div><div class="name">4</div><div class="val">16px</div></div>
+      <div class="token"><div class="box" style="width:20px;height:20px;"></div><div class="name">5</div><div class="val">20px</div></div>
+      <div class="token"><div class="box" style="width:24px;height:24px;"></div><div class="name">6</div><div class="val">24px</div></div>
+      <div class="token"><div class="box" style="width:32px;height:32px;"></div><div class="name">8</div><div class="val">32px</div></div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Border Radius</div>
+    <div class="row">
+      <div class="token"><div class="rbox" style="border-radius:6px;margin:0 auto 6px;"></div><div class="name">sm</div><div class="val">6px</div></div>
+      <div class="token"><div class="rbox" style="border-radius:8px;margin:0 auto 6px;"></div><div class="name">md</div><div class="val">8px</div></div>
+      <div class="token"><div class="rbox" style="border-radius:10px;margin:0 auto 6px;"></div><div class="name">lg</div><div class="val">10px</div></div>
+      <div class="token"><div class="rbox" style="border-radius:9999px;margin:0 auto 6px;width:48px;height:24px;"></div><div class="name">full</div><div class="val">pill</div></div>
+    </div>
+  </div>
+</div>
+</body></html>

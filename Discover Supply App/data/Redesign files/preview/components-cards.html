@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: #f1f2f5; padding: 20px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .card { background: white; border: 1px solid #e2e6ec; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.04),0 1px 3px rgba(0,0,0,0.06); padding: 20px; min-width: 180px; flex: 1; }
+  .card-label { font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 4px; }
+  .card-sub { font-size: 13px; color: #6b7280; }
+  .icon-box { width: 32px; height: 32px; border-radius: 8px; background: hsl(221 83% 53% / 0.10); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  svg { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+      <div class="card-sub">Open orders</div>
+      <div class="icon-box">
+        <svg fill="none" stroke="hsl(221 83% 53%)" stroke-width="2" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      </div>
+    </div>
+    <div style="font-size:24px;font-weight:700;color:#0f172a;letter-spacing:-0.02em;">24</div>
+    <div style="margin-top:6px;display:flex;gap:6px;align-items:center;">
+      <span style="background:hsl(142 71% 45% / 0.10);color:hsl(142 71% 32%);font-size:11px;font-weight:600;border-radius:4px;padding:1px 5px;">+4</span>
+      <span style="font-size:11px;color:#6b7280;">since yesterday</span>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+      <div class="card-sub">Low-stock alerts</div>
+      <div class="icon-box">
+        <svg fill="none" stroke="hsl(38 92% 50%)" stroke-width="2" viewBox="0 0 24 24" style="color:hsl(38 92% 50%)"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+    </div>
+    <div style="font-size:24px;font-weight:700;color:#0f172a;letter-spacing:-0.02em;">7</div>
+    <div style="margin-top:6px;font-size:11px;color:#6b7280;">products below threshold</div>
+  </div>
+  <div class="card">
+    <div class="card-label" style="margin-bottom:12px;">Order detail</div>
+    <div class="card-sub" style="font-size:13px;line-height:1.5;">Walk-in customer · Main stock</div>
+    <div class="card-sub" style="font-size:12px;margin-top:4px;">USD - Retail price</div>
+  </div>
+</body></html>

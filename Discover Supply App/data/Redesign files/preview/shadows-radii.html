@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: #f1f2f5; padding: 24px; }
+  .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .demo { background: white; border-radius: 10px; border: 1px solid #e2e6ec; padding: 16px 18px; min-width: 140px; }
+  .label { font-size: 10px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .shadow-box { width: 80px; height: 48px; background: white; border-radius: 10px; }
+</style>
+</head>
+<body>
+<div class="row">
+  <div class="demo">
+    <div class="label">shadow-card</div>
+    <div class="shadow-box" style="box-shadow:0 1px 2px 0 rgb(0 0 0/0.04),0 1px 3px 0 rgb(0 0 0/0.06);"></div>
+    <div style="font-size:9px;color:#6b7280;margin-top:6px;">Default card elevation</div>
+  </div>
+  <div class="demo">
+    <div class="label">shadow-card-hover</div>
+    <div class="shadow-box" style="box-shadow:0 4px 6px -1px rgb(0 0 0/0.06),0 2px 4px -2px rgb(0 0 0/0.06);"></div>
+    <div style="font-size:9px;color:#6b7280;margin-top:6px;">Dropdowns, modals</div>
+  </div>
+  <div class="demo">
+    <div class="label">No shadow</div>
+    <div class="shadow-box" style="box-shadow:none;border:1px solid #e2e6ec;"></div>
+    <div style="font-size:9px;color:#6b7280;margin-top:6px;">Nested / inset elements</div>
+  </div>
+</div>
+</body></html>

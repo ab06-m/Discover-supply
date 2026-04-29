@@ -1,0 +1,281 @@
+/* =============================================================================
+   DISCOVER SUPPLY — Design Tokens
+   CSS custom properties for colors, typography, spacing, shadows, radii
+   ============================================================================= */
+
+/* Google Fonts import — DM Sans substituting for system font stack */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+/* ⚠️ SUBSTITUTION: No custom font found in codebase. DM Sans is a close match
+   to the Tailwind system font stack. Replace with brand font if one exists. */
+
+:root {
+  /* ---------------------------------------------------------------------------
+     COLOR PALETTE — Base
+  --------------------------------------------------------------------------- */
+
+  /* Primary — Blue */
+  --color-primary:            hsl(221 83% 53%);  /* #2563eb */
+  --color-primary-dark:       hsl(221 83% 45%);  /* sidebar active */
+  --color-primary-light:      hsl(217 91% 96%);  /* #eff6ff — accent/hover bg */
+  --color-primary-muted:      hsl(215 90% 75%);  /* sidebar muted text */
+
+  /* Neutrals */
+  --color-background:         hsl(220 14% 96%);  /* #f1f2f5 — page bg */
+  --color-card:               hsl(0 0% 100%);    /* #ffffff — card/modal bg */
+  --color-border:             hsl(220 13% 91%);  /* #e2e6ec — borders, inputs */
+  --color-input:              hsl(220 13% 91%);  /* same as border */
+
+  /* Foreground text */
+  --color-foreground:         hsl(222 47% 11%);  /* #0f172a — primary text */
+  --color-muted-fg:           hsl(220 9% 46%);   /* #6b7280 — secondary text */
+  --color-accent-fg:          hsl(221 83% 33%);  /* dark blue — accent text */
+
+  /* Semantic */
+  --color-success:            hsl(142 71% 45%);  /* #22c55e-ish — in-stock, positive */
+  --color-success-bg:         hsl(142 71% 45% / 0.10);
+  --color-warning:            hsl(38 92% 50%);   /* #f59e0b — low stock, caution */
+  --color-warning-bg:         hsl(38 92% 50% / 0.10);
+  --color-destructive:        hsl(0 84% 60%);    /* #ef4444 — errors, out-of-stock */
+  --color-destructive-bg:     hsl(0 84% 60% / 0.10);
+
+  /* Sidebar */
+  --color-sidebar:            hsl(221 83% 53%);  /* same as primary */
+  --color-sidebar-fg:         hsl(0 0% 100%);
+  --color-sidebar-active:     hsl(221 83% 45%);
+  --color-sidebar-muted:      hsl(215 90% 75%);
+  --color-sidebar-hover-bg:   rgba(255,255,255,0.10);
+  --color-sidebar-active-bg:  hsl(0 0% 100%);
+
+  /* ---------------------------------------------------------------------------
+     SHADOWS
+  --------------------------------------------------------------------------- */
+  --shadow-card:        0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.06);
+  --shadow-card-hover:  0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --shadow-none:        none;
+
+  /* ---------------------------------------------------------------------------
+     BORDER RADIUS
+  --------------------------------------------------------------------------- */
+  --radius-sm:    6px;    /* calc(var(--radius) - 4px) */
+  --radius-md:    8px;    /* calc(var(--radius) - 2px) */
+  --radius-lg:    10px;   /* var(--radius) = 0.625rem */
+  --radius-full:  9999px; /* pills, badges, stage chips */
+
+  /* ---------------------------------------------------------------------------
+     SPACING SCALE
+  --------------------------------------------------------------------------- */
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   20px;
+  --space-6:   24px;
+  --space-8:   32px;
+  --space-10:  40px;
+  --space-12:  48px;
+
+  /* ---------------------------------------------------------------------------
+     TYPOGRAPHY
+  --------------------------------------------------------------------------- */
+
+  /* Font families */
+  --font-sans:  'DM Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:  ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+
+  /* Font sizes */
+  --text-xs:    12px;
+  --text-sm:    14px;
+  --text-base:  16px;
+  --text-lg:    18px;
+  --text-xl:    20px;
+  --text-2xl:   24px;
+  --text-3xl:   30px;
+
+  /* Font weights */
+  --font-normal:    400;
+  --font-medium:    500;
+  --font-semibold:  600;
+  --font-bold:      700;
+
+  /* Line heights */
+  --leading-tight:   1.25;
+  --leading-snug:    1.375;
+  --leading-normal:  1.5;
+
+  /* Letter spacing */
+  --tracking-tight:   -0.02em;
+  --tracking-normal:   0;
+  --tracking-wide:     0.025em;
+  --tracking-wider:    0.05em;
+  --tracking-widest:   0.1em;
+}
+
+/* =============================================================================
+   SEMANTIC TYPOGRAPHY CLASSES
+   ============================================================================= */
+
+/* Page-level headings */
+.ds-page-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-tight);
+  color: var(--color-foreground);
+  letter-spacing: var(--tracking-tight);
+}
+
+.ds-page-subtitle {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-normal);
+  color: var(--color-muted-fg);
+  line-height: var(--leading-normal);
+}
+
+/* Card / section headings */
+.ds-card-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--color-foreground);
+  line-height: var(--leading-tight);
+}
+
+/* Stat / number display */
+.ds-stat-value {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  color: var(--color-foreground);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Body text */
+.ds-body {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-normal);
+  color: var(--color-foreground);
+  line-height: var(--leading-normal);
+}
+
+.ds-body-muted {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-normal);
+  color: var(--color-muted-fg);
+  line-height: var(--leading-normal);
+}
+
+/* Label (form fields, table headers) */
+.ds-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-foreground);
+  line-height: var(--leading-tight);
+}
+
+/* Table header */
+.ds-table-header {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-muted-fg);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+/* Caption / hint */
+.ds-caption {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--font-normal);
+  color: var(--color-muted-fg);
+  line-height: var(--leading-normal);
+}
+
+/* Link */
+.ds-link {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-primary);
+  text-decoration: none;
+}
+.ds-link:hover { text-decoration: underline; }
+
+/* Money / numeric */
+.ds-money {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-foreground);
+}
+
+/* =============================================================================
+   BASE COMPONENT TOKENS (reusable)
+   ============================================================================= */
+
+.ds-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.ds-input {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--color-foreground);
+  height: 40px;
+  padding: 0 var(--space-3);
+}
+
+.ds-btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  height: 40px;
+  padding: 0 var(--space-4);
+  border: none;
+  cursor: pointer;
+  transition: background 150ms;
+}
+.ds-btn-primary:hover { background: hsl(221 83% 47%); }
+.ds-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ds-btn-outline {
+  background: var(--color-card);
+  color: var(--color-foreground);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  height: 40px;
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  transition: background 150ms;
+}
+.ds-btn-outline:hover { background: var(--color-primary-light); }
+
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  padding: 2px 10px;
+  color: #fff;
+}

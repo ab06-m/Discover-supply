@@ -8,18 +8,24 @@ import {
   FileText,
   LayoutDashboard,
   Menu,
+  Moon,
   Package,
   PackagePlus,
   Settings,
   ShoppingCart,
   Store,
+  Sun,
   Truck,
   Upload,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/components/app/theme-provider";
 
-const nav = [
+type NavItem = { href: string; label: string; icon: LucideIcon };
+
+const nav: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/products", label: "Inventory", icon: Package },
   { href: "/check-in", label: "Check in", icon: PackagePlus },
@@ -32,9 +38,51 @@ const nav = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function CompactNavLinks({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+}) {
   const router = useRouter();
+  return (
+    <nav className="flex w-full flex-1 flex-col items-center gap-1 overflow-y-auto px-2 py-1">
+      {nav.map((item) => {
+        const active = pathname === item.href || pathname.startsWith(item.href + "/");
+        const Icon = item.icon;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            prefetch={false}
+            onPointerEnter={() => router.prefetch(item.href)}
+            onFocus={() => router.prefetch(item.href)}
+            onClick={onNavigate}
+            className={cn(
+              "flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] leading-tight transition-colors",
+              active
+                ? "bg-white font-semibold text-primary shadow-sm"
+                : "font-medium text-white/80 hover:bg-white/10 hover:text-white",
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
+function ExpandedNavLinks({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const router = useRouter();
   return (
     <nav className="flex-1 space-y-1 p-3">
       {nav.map((item) => {
@@ -64,8 +112,17 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
   );
 }
 
-function SidebarHeader({ orgName }: { orgName: string }) {
+function OrgBadge({ orgName, compact = false }: { orgName: string; compact?: boolean }) {
   const initial = orgName.trim().charAt(0).toUpperCase() || "D";
+  if (compact) {
+    return (
+      <div className="flex justify-center px-0 py-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-white text-base font-bold text-primary shadow-sm">
+          {initial}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center gap-3 px-4 py-4">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-base font-bold text-primary shadow-sm">
@@ -79,12 +136,31 @@ function SidebarHeader({ orgName }: { orgName: string }) {
   );
 }
 
+function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  const isDark = theme === "dark";
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label="Toggle color theme"
+      className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white transition-colors hover:bg-white/20"
+    >
+      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
+  );
+}
+
 export function Sidebar({ orgName }: { orgName: string }) {
   const pathname = usePathname();
   return (
-    <aside className="hidden w-56 shrink-0 flex-col bg-sidebar md:flex">
-      <SidebarHeader orgName={orgName} />
-      <NavLinks pathname={pathname} />
+    <aside className="hidden w-[84px] shrink-0 flex-col items-center bg-sidebar md:flex">
+      <OrgBadge orgName={orgName} compact />
+      <CompactNavLinks pathname={pathname} />
+      <div className="flex w-full flex-col items-center gap-2 border-t border-white/10 px-0 py-3">
+        <ThemeToggle />
+      </div>
     </aside>
   );
 }
@@ -111,7 +187,7 @@ export function MobileSidebar({ orgName }: { orgName: string }) {
           />
           <aside className="absolute left-0 top-0 flex h-full w-64 flex-col bg-sidebar shadow-xl">
             <div className="flex items-center justify-between">
-              <SidebarHeader orgName={orgName} />
+              <OrgBadge orgName={orgName} />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -121,7 +197,10 @@ export function MobileSidebar({ orgName }: { orgName: string }) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} />
+            <ExpandedNavLinks pathname={pathname} onNavigate={() => setOpen(false)} />
+            <div className="flex items-center justify-end gap-2 border-t border-white/10 px-3 py-3">
+              <ThemeToggle />
+            </div>
           </aside>
         </div>
       ) : null}

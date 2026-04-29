@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: #f1f2f5; padding: 20px; }
+  .label { font-size: 10px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .pipeline { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+  .stage { display: inline-flex; align-items: center; gap: 5px; border-radius: 9999px; border: 1px solid; padding: 5px 12px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 150ms; }
+  .stage-past { background: #f1f2f5; border-color: #e2e6ec; color: #6b7280; }
+  .stage-current { color: white; border-color: transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+  .stage-future { background: white; border-color: #e2e6ec; color: #0f172a; }
+  .chevron { color: #94a3b8; font-size: 12px; }
+  .terminals { display: flex; gap: 6px; margin-top: 10px; }
+  .term-btn { background: white; border: 1px solid #e2e6ec; border-radius: 8px; padding: 5px 12px; font-size: 13px; font-weight: 500; color: #0f172a; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+  .check-icon { width: 12px; height: 12px; }
+</style>
+</head>
+<body>
+  <div class="label">Stage Pipeline — "Confirmed" is current</div>
+  <div class="pipeline">
+    <div class="stage stage-past">
+      <svg class="check-icon" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Draft
+    </div>
+    <span class="chevron">›</span>
+    <div class="stage stage-current" style="background:#3b82f6;border-color:#3b82f6;">Confirmed</div>
+    <span class="chevron">›</span>
+    <div class="stage stage-future">Packed</div>
+    <span class="chevron">›</span>
+    <div class="stage stage-future">Delivered</div>
+  </div>
+  <div class="terminals">
+    <button class="term-btn">Mark Paid</button>
+    <button class="term-btn" style="color:hsl(0 84% 44%);border-color:hsl(0 84% 60% / 0.4);">Cancel</button>
+  </div>
+</body></html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: #f1f2f5; padding: 20px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field-label { font-size: 13px; font-weight: 500; color: #0f172a; }
+  input, select, textarea { font-family: 'DM Sans', sans-serif; font-size: 14px; color: #0f172a; background: white; border: 1px solid #e2e6ec; border-radius: 8px; padding: 0 12px; height: 40px; width: 200px; outline: none; }
+  input:focus, select:focus { border-color: hsl(221 83% 53%); box-shadow: 0 0 0 2px hsl(221 83% 53% / 0.15); }
+  input.with-icon { padding-left: 36px; }
+  .input-wrap { position: relative; }
+  .input-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #6b7280; width: 16px; height: 16px; pointer-events: none; }
+  textarea { height: 72px; padding: 8px 12px; resize: none; }
+  .error-input { border-color: hsl(0 84% 60%); }
+  .error-msg { font-size: 12px; color: hsl(0 84% 44%); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="field">
+      <label class="field-label">Customer</label>
+      <select><option>Walk-in customer</option><option>Metro Mart</option></select>
+    </div>
+    <div class="field">
+      <label class="field-label">Search</label>
+      <div class="input-wrap">
+        <svg class="input-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="with-icon" type="text" placeholder="Search order # or store…">
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">Stage filter</label>
+      <select><option value="">All stages</option><option>Draft</option><option>Confirmed</option></select>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label class="field-label">Unit price</label>
+      <div class="input-wrap">
+        <input type="number" value="24.99" style="padding-right:40px;">
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:500;color:#6b7280;pointer-events:none;">USD</span>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">Notes <span style="font-size:11px;color:#6b7280;font-weight:400;">(has error)</span></label>
+      <textarea class="error-input" placeholder="Type here…"></textarea>
+      <span class="error-msg">Add at least one line item.</span>
+    </div>
+  </div>
+</body></html>

@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -30,6 +32,7 @@
     --sidebar-foreground: 0 0% 100%;
     --sidebar-active: 221 83% 45%;
     --sidebar-muted: 215 90% 75%;
+    --table-head: 220 14% 97%;
   }
   .dark {
     --background: 222 47% 6%;
@@ -37,7 +40,7 @@
     --card: 222 47% 9%;
     --card-foreground: 210 40% 98%;
     --primary: 221 83% 60%;
-    --primary-foreground: 222 47% 11%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 217 33% 17%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217 33% 17%;
@@ -57,13 +60,23 @@
     --sidebar-foreground: 210 40% 98%;
     --sidebar-active: 221 83% 53%;
     --sidebar-muted: 215 20% 65%;
+    --table-head: 222 47% 7%;
   }
   * { @apply border-border; }
-  body { @apply bg-background text-foreground; font-feature-settings: "rlig" 1, "calt" 1; }
+  html { font-family: 'DM Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 }
 
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
+  }
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }

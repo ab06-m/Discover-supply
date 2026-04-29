@@ -24,7 +24,7 @@ export function PageHeader({ title, subtitle, backHref, backLabel, actions, clas
             {backLabel ?? "Back"}
           </Link>
         ) : null}
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">{title}</h1>
         {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2 sm:mt-1">{actions}</div> : null}

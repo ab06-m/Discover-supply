@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: #f1f2f5; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+  .label { font-size: 10px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .pill-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; border: 1px solid; padding: 6px 12px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 150ms; }
+  .pill-active { border-color: hsl(221 83% 53%); background: hsl(221 83% 53% / 0.05); color: hsl(221 83% 53%); }
+  .pill-inactive { border-color: #e2e6ec; background: white; color: #6b7280; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="label">Status Pill — Order Stage</div>
+    <div class="pill-group">
+      <div class="pill pill-inactive"><span class="dot" style="background:#94a3b8;opacity:0.4;"></span>Draft</div>
+      <div class="pill pill-active"><span class="dot" style="background:hsl(221 83% 53%);"></span>Confirmed</div>
+      <div class="pill pill-inactive"><span class="dot" style="background:#f59e0b;opacity:0.4;"></span>Packed</div>
+      <div class="pill pill-inactive"><span class="dot" style="background:#10b981;opacity:0.4;"></span>Delivered</div>
+    </div>
+  </div>
+  <div>
+    <div class="label">Status Pill — Custom Colors</div>
+    <div class="pill-group">
+      <div class="pill pill-inactive"><span class="dot" style="background:#8b5cf660;"></span>Pending</div>
+      <div class="pill" style="border-color:#8b5cf6;background:#8b5cf60d;color:#8b5cf6;"><span class="dot" style="background:#8b5cf6;"></span>Processing</div>
+      <div class="pill pill-inactive"><span class="dot" style="background:#0ea5e960;"></span>Shipped</div>
+    </div>
+  </div>
+</body></html>
