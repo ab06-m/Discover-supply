@@ -58,6 +58,36 @@ export async function listProducts(
     .offset(offset);
 }
 
+export async function getProductInventorySummary(
+  orgId: string,
+  defaultLowStockThreshold: number,
+) {
+  const available = sql`greatest(${schema.products.onHand} - ${schema.products.committed}, 0)`;
+  const rawAvailable = sql`${schema.products.onHand} - ${schema.products.committed}`;
+  const lowStockThreshold = sql`coalesce(${schema.products.lowStockThreshold}, ${defaultLowStockThreshold})`;
+
+  const [row] = await db
+    .select({
+      totalInStock: sql<string>`coalesce(sum(case when ${schema.products.trackStock} then ${available} * ${schema.products.price} else 0 end), 0)`,
+      costOfStock: sql<string>`coalesce(sum(case when ${schema.products.trackStock} then ${available} * ${schema.products.cost} else 0 end), 0)`,
+      projectedProfit: sql<string>`coalesce(sum(case when ${schema.products.trackStock} then ${available} * (${schema.products.price} - ${schema.products.cost}) else 0 end), 0)`,
+      lowInStock: sql<number>`coalesce(sum(case when ${schema.products.trackStock} and ${rawAvailable} > 0 and ${rawAvailable} <= ${lowStockThreshold} then 1 else 0 end), 0)::int`,
+      outOfStock: sql<number>`coalesce(sum(case when ${schema.products.trackStock} and ${rawAvailable} <= 0 then 1 else 0 end), 0)::int`,
+      inStock: sql<number>`coalesce(sum(case when ${schema.products.trackStock} then ${available} else 0 end), 0)::int`,
+    })
+    .from(schema.products)
+    .where(eq(schema.products.orgId, orgId));
+
+  return {
+    totalInStock: row?.totalInStock ?? "0",
+    costOfStock: row?.costOfStock ?? "0",
+    projectedProfit: row?.projectedProfit ?? "0",
+    lowInStock: row?.lowInStock ?? 0,
+    outOfStock: row?.outOfStock ?? 0,
+    inStock: row?.inStock ?? 0,
+  };
+}
+
 export async function searchProductSuggestions(orgId: string, query: string, limit = 8) {
   const search = query.trim();
   if (search.length < 1) return [];

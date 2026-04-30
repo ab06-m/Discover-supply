@@ -2,7 +2,11 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { AlertTriangle, Package, PackagePlus, Plus } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
-import { countProducts, listProducts } from "@/modules/inventory/queries";
+import {
+  countProducts,
+  getProductInventorySummary,
+  listProducts,
+} from "@/modules/inventory/queries";
 import {
   getInventorySettings,
   getStockStatus,
@@ -29,6 +33,7 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_PER_PAGE = 50;
 const ALLOWED_PER_PAGE = [25, 50, 100, 250];
+const numberFormatter = new Intl.NumberFormat("en-US");
 
 export default async function ProductsPage({
   searchParams,
@@ -43,13 +48,14 @@ export default async function ProductsPage({
     : DEFAULT_PER_PAGE;
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
   const offset = (page - 1) * perPage;
+  const { defaultLowStockThreshold } = getInventorySettings(org.settings);
 
-  const [products, total] = await Promise.all([
+  const [products, total, inventorySummary] = await Promise.all([
     listProducts(org.id, { search: q, limit: perPage, offset }),
     countProducts(org.id, q),
+    getProductInventorySummary(org.id, defaultLowStockThreshold),
   ]);
 
-  const { defaultLowStockThreshold } = getInventorySettings(org.settings);
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const safePage = Math.min(page, totalPages);
 
@@ -73,6 +79,51 @@ export default async function ProductsPage({
           </>
         }
       />
+
+      <div className="grid gap-x-8 gap-y-4 rounded-xl bg-muted/50 px-6 py-4 shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="min-w-0">
+          <div className="text-base font-semibold tabular-nums text-foreground">
+            {formatMoney(inventorySummary.totalInStock, org.currency)}
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">Total in stock</div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-base font-semibold tabular-nums text-foreground">
+            {formatMoney(inventorySummary.costOfStock, org.currency)}
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">Cost of stock</div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-base font-semibold tabular-nums text-foreground">
+            {formatMoney(inventorySummary.projectedProfit, org.currency)}
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">Projected profit</div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-base font-semibold tabular-nums text-foreground">
+            {numberFormatter.format(inventorySummary.lowInStock)}
+          </div>
+          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="h-3 w-3 rounded-full bg-warning" />
+            Low in stock
+          </div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-base font-semibold tabular-nums text-foreground">
+            {numberFormatter.format(inventorySummary.outOfStock)}
+          </div>
+          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="h-3 w-3 rounded-full bg-destructive" />
+            Out of stock
+          </div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-base font-semibold tabular-nums text-foreground">
+            {numberFormatter.format(inventorySummary.inStock)}
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">in stock</div>
+        </div>
+      </div>
 
       {received && (
         <div className="rounded-lg border border-success/30 bg-success/5 p-3 text-sm text-success">
