@@ -15,6 +15,7 @@ export type Action =
   // inventory
   | "product.read"
   | "product.write"
+  | "category.write"
   | "stock.read"
   | "stock.receive"
   | "stock.adjust"
@@ -62,6 +63,7 @@ const STAFF_READ: Action[] = [
 const ADMIN_ACTIONS: Action[] = [
   ...STAFF_READ,
   "product.write",
+  "category.write",
   "stock.receive",
   "stock.adjust",
   "customer.write",
@@ -99,6 +101,7 @@ const MATRIX: Record<Role, Action[] | "*"> = {
   warehouse: [
     ...STAFF_READ,
     "product.write",
+    "category.write",
     "stock.receive",
     "stock.adjust",
     "order.advance_stage",

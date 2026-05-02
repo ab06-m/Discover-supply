@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, ImageIcon, Pencil } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
 import { getProduct } from "@/modules/inventory/queries";
 import { db, schema } from "@/lib/db";
@@ -42,6 +42,7 @@ export default async function ProductDetailPage({
     .limit(25);
 
   const available = product.onHand - product.committed;
+  const gallery = Array.isArray(product.imageGallery) ? product.imageGallery : [];
 
   return (
     <div className="space-y-4">
@@ -55,6 +56,7 @@ export default async function ProductDetailPage({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{product.name}</h1>
           <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+            <Badge variant="secondary">{product.kind === "service" ? "service" : "goods"}</Badge>
             {product.sku && <span>SKU {product.sku}</span>}
             {product.barcode && <span>Barcode {product.barcode}</span>}
             {!product.isActive && <Badge variant="secondary">inactive</Badge>}
@@ -70,6 +72,81 @@ export default async function ProductDetailPage({
         <StatCard label="On hand" value={product.trackStock ? product.onHand : "—"} />
         <StatCard label="Committed" value={product.trackStock ? product.committed : "—"} />
         <StatCard label="Price" value={formatMoney(product.price, org.currency)} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Item information</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 text-sm sm:grid-cols-2">
+            <Info label="Brand" value={product.brand} />
+            <Info label="Vendor" value={product.vendor} />
+            <Info label="Sell/stock as" value={product.packSize > 1 ? "Case" : "Unit"} />
+            <Info label="Units per case" value={product.packSize} />
+            <Info label="Cost" value={formatMoney(product.cost, org.currency)} />
+            <Info label="Reorder point" value={product.lowStockThreshold ?? "Default"} />
+            <Info label="Returnable" value={product.returnable ? "Yes" : "No"} />
+            <Info label="Online store" value={product.showInOnlineStore ? "Visible" : "Hidden"} />
+            {product.description ? (
+              <div className="sm:col-span-2">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Description
+                </div>
+                <div className="mt-1 whitespace-pre-wrap">{product.description}</div>
+              </div>
+            ) : null}
+            {product.salesDescription ? (
+              <div className="sm:col-span-2">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Sales description
+                </div>
+                <div className="mt-1 whitespace-pre-wrap">{product.salesDescription}</div>
+              </div>
+            ) : null}
+            {product.purchaseDescription ? (
+              <div className="sm:col-span-2">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Purchase description
+                </div>
+                <div className="mt-1 whitespace-pre-wrap">{product.purchaseDescription}</div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Images</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {product.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                className="aspect-square w-full rounded-lg border bg-muted object-cover"
+              />
+            ) : (
+              <div className="flex aspect-square w-full items-center justify-center rounded-lg border border-dashed bg-muted text-muted-foreground">
+                <ImageIcon className="h-8 w-8" />
+              </div>
+            )}
+            {gallery.length > 0 ? (
+              <div className="grid grid-cols-4 gap-2">
+                {gallery.map((url, index) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={`${url}-${index}`}
+                    src={url}
+                    alt=""
+                    className="aspect-square rounded-md border bg-muted object-cover"
+                  />
+                ))}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -109,6 +186,17 @@ export default async function ProductDetailPage({
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function Info({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1">{value || "-"}</div>
     </div>
   );
 }

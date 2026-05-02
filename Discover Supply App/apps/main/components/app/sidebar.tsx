@@ -12,6 +12,7 @@ import {
   Package,
   PackagePlus,
   Settings,
+  ShoppingBasket,
   ShoppingCart,
   Store,
   Sun,
@@ -26,6 +27,7 @@ import { useTheme } from "@/components/app/theme-provider";
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
 const nav: NavItem[] = [
+  { href: "/sell", label: "Sell", icon: ShoppingBasket },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/products", label: "Inventory", icon: Package },
   { href: "/check-in", label: "Check in", icon: PackagePlus },

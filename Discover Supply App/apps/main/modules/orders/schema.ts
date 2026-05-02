@@ -14,7 +14,7 @@ import {
 import { sql } from "drizzle-orm";
 import { organizations } from "../_core/schema";
 import { customers } from "../customers/schema";
-import { products } from "../inventory/schema";
+import { products, movementUnit } from "../inventory/schema";
 
 // The "effect" a stage triggers on transition. Business logic looks up by effect, NEVER by name.
 export const stageEffect = pgEnum("stage_effect", [
@@ -99,7 +99,14 @@ export const orderItems = pgTable(
     productId: uuid("product_id").references(() => products.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     sku: text("sku"),
+    // `quantity` is the BASE-UNIT count (always in eaches) — the source of truth
+    // for stock math. `quantityInput` + `unitOfMeasure` + `packSize` capture how
+    // the user entered it (e.g. 2 boxes of 12) so the line can be re-rendered
+    // and audited.
     quantity: integer("quantity").notNull(),
+    quantityInput: integer("quantity_input"),
+    unitOfMeasure: movementUnit("unit_of_measure"),
+    packSize: integer("pack_size"),
     unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
     discount: numeric("discount", { precision: 12, scale: 2 }).notNull().default("0"),
     taxRate: numeric("tax_rate", { precision: 5, scale: 4 }).notNull().default("0"),
@@ -131,6 +138,31 @@ export const orderStageHistory = pgTable(
   (t) => ({
     orderIdx: index("order_stage_history_order_idx").on(t.orderId),
     orgIdx: index("order_stage_history_org_idx").on(t.orgId),
+  }),
+);
+
+// Broader order activity log for detail edits and delivery assignment events.
+// Stage moves stay in order_stage_history for stock-effect idempotency, while
+// this table captures field/item edits and dispatch ownership changes.
+export const orderActivity = pgTable(
+  "order_activity",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),
+    actorId: uuid("actor_id"),
+    subjectUserId: uuid("subject_user_id"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orderIdx: index("order_activity_order_idx").on(t.orderId, t.createdAt),
+    orgIdx: index("order_activity_org_idx").on(t.orgId),
   }),
 );
 
@@ -187,5 +219,6 @@ export const DEFAULT_ORDER_TEMPLATE_CONFIG: OrderTemplateConfig = {
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type OrderStage = typeof orderStages.$inferSelect;
+export type OrderActivity = typeof orderActivity.$inferSelect;
 export type OrderTemplate = typeof orderTemplates.$inferSelect;
 export type StageEffect = (typeof stageEffect.enumValues)[number];

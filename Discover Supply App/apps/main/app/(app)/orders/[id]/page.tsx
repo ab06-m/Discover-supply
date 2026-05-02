@@ -170,21 +170,46 @@ export default async function OrderDetailPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((it) => (
-                  <TableRow key={it.id}>
-                    <TableCell>
-                      <div className="font-medium">{it.name}</div>
-                      {it.sku && <div className="text-xs text-muted-foreground">{it.sku}</div>}
-                    </TableCell>
-                    <TableCell>{it.quantity}</TableCell>
-                    <TableCell className="text-right">
-                      {formatMoney(it.unitPrice, org.currency)}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatMoney(it.lineTotal, org.currency)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {items.map((it) => {
+                  // Legacy lines (pre-box-unit migration) carry NULL for the
+                  // input-form fields; fall back to `quantity` (base units)
+                  // so they keep rendering the way they always did.
+                  const displayQty = it.quantityInput ?? it.quantity;
+                  const isBox = it.unitOfMeasure === "box";
+                  const packSize = it.packSize ?? 1;
+                  const nameSuffix = isBox && packSize > 1 ? ` · case of ${packSize}` : "";
+                  return (
+                    <TableRow key={it.id}>
+                      <TableCell>
+                        <div className="font-medium">
+                          {it.name}
+                          {nameSuffix && (
+                            <span className="ml-1 text-xs font-normal text-muted-foreground">
+                              {nameSuffix}
+                            </span>
+                          )}
+                        </div>
+                        {it.sku && <div className="text-xs text-muted-foreground">{it.sku}</div>}
+                      </TableCell>
+                      <TableCell>
+                        {displayQty}
+                        {isBox && packSize > 1 && (
+                          <div className="text-[10px] text-muted-foreground">
+                            {displayQty.toLocaleString()} case
+                            {displayQty === 1 ? "" : "s"} x {packSize.toLocaleString()} units ={" "}
+                            {it.quantity.toLocaleString()} units
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatMoney(it.unitPrice, org.currency)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatMoney(it.lineTotal, org.currency)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
             {order.notes && (

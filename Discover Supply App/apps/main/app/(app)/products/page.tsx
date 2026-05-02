@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { AlertTriangle, Package, PackagePlus, Plus } from "lucide-react";
+import { AlertTriangle, FolderTree, Package, PackagePlus, Plus } from "lucide-react";
+import { ManageCategoriesDialog } from "@/modules/inventory/components/manage-categories-dialog";
 import { requireActiveOrg } from "@/lib/auth";
 import {
   countProducts,
@@ -12,6 +13,7 @@ import {
   getStockStatus,
   resolveLowStockThreshold,
 } from "@/modules/inventory/lib/stock-rules";
+import { formatStockDisplay } from "@/modules/inventory/lib/format-stock";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -27,6 +29,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { PaginationControls } from "@/components/app/pagination-controls";
 import { ProductSearchInput } from "@/components/app/product-search-input";
 import { EmptyState } from "@/components/app/empty-state";
+import { InventorySummaryPanel } from "@/components/app/inventory-summary-panel";
 import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +69,13 @@ export default async function ProductsPage({
         subtitle={`${total} product${total === 1 ? "" : "s"}`}
         actions={
           <>
+            <ManageCategoriesDialog
+              trigger={
+                <Button variant="outline">
+                  <FolderTree className="mr-2 h-4 w-4" /> Manage categories
+                </Button>
+              }
+            />
             <Button asChild variant="outline">
               <Link href="/check-in">
                 <PackagePlus className="mr-2 h-4 w-4" /> Check in stock
@@ -73,57 +83,43 @@ export default async function ProductsPage({
             </Button>
             <Button asChild>
               <Link href="/products/new">
-                <Plus className="mr-2 h-4 w-4" /> New product
+                <Plus className="mr-2 h-4 w-4" /> New item
               </Link>
             </Button>
           </>
         }
       />
 
-      <div className="grid gap-x-8 gap-y-4 rounded-xl bg-muted/50 px-6 py-4 shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <div className="min-w-0">
-          <div className="text-base font-semibold tabular-nums text-foreground">
-            {formatMoney(inventorySummary.totalInStock, org.currency)}
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">Total in stock</div>
-        </div>
-        <div className="min-w-0">
-          <div className="text-base font-semibold tabular-nums text-foreground">
-            {formatMoney(inventorySummary.costOfStock, org.currency)}
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">Cost of stock</div>
-        </div>
-        <div className="min-w-0">
-          <div className="text-base font-semibold tabular-nums text-foreground">
-            {formatMoney(inventorySummary.projectedProfit, org.currency)}
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">Projected profit</div>
-        </div>
-        <div className="min-w-0">
-          <div className="text-base font-semibold tabular-nums text-foreground">
-            {numberFormatter.format(inventorySummary.lowInStock)}
-          </div>
-          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="h-3 w-3 rounded-full bg-warning" />
-            Low in stock
-          </div>
-        </div>
-        <div className="min-w-0">
-          <div className="text-base font-semibold tabular-nums text-foreground">
-            {numberFormatter.format(inventorySummary.outOfStock)}
-          </div>
-          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="h-3 w-3 rounded-full bg-destructive" />
-            Out of stock
-          </div>
-        </div>
-        <div className="min-w-0">
-          <div className="text-base font-semibold tabular-nums text-foreground">
-            {numberFormatter.format(inventorySummary.inStock)}
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">in stock</div>
-        </div>
-      </div>
+      <InventorySummaryPanel
+        items={[
+          {
+            label: "Total in stock",
+            value: formatMoney(inventorySummary.totalInStock, org.currency),
+          },
+          {
+            label: "Cost of stock",
+            value: formatMoney(inventorySummary.costOfStock, org.currency),
+          },
+          {
+            label: "Projected profit",
+            value: formatMoney(inventorySummary.projectedProfit, org.currency),
+          },
+          {
+            label: "Low in stock",
+            value: numberFormatter.format(inventorySummary.lowInStock),
+            tone: "warning",
+          },
+          {
+            label: "Out of stock",
+            value: numberFormatter.format(inventorySummary.outOfStock),
+            tone: "destructive",
+          },
+          {
+            label: "In stock",
+            value: numberFormatter.format(inventorySummary.inStock),
+          },
+        ]}
+      />
 
       {received && (
         <div className="rounded-lg border border-success/30 bg-success/5 p-3 text-sm text-success">
@@ -147,13 +143,13 @@ export default async function ProductsPage({
           action={
             !q ? (
               <Button asChild>
-                <Link href="/products/new">Add your first product</Link>
+                <Link href="/products/new">Add your first item</Link>
               </Button>
             ) : null
           }
         />
       ) : (
-        <Card className="overflow-hidden shadow-card">
+        <Card className="overflow-x-auto shadow-card">
           <Table>
             <TableHeader>
               <TableRow>
@@ -181,6 +177,11 @@ export default async function ProductsPage({
                       <Link href={`/products/${p.id}`} className="font-medium hover:underline">
                         {p.name}
                       </Link>
+                      {(p.packSize ?? 1) > 1 && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          · case of {p.packSize}
+                        </span>
+                      )}
                       {p.barcode && (
                         <div className="text-xs text-muted-foreground">#{p.barcode}</div>
                       )}
@@ -220,7 +221,22 @@ export default async function ProductsPage({
                       </span>
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
-                      {p.trackStock ? p.onHand : "-"}
+                      {p.trackStock ? (
+                        <div
+                          className="flex flex-col items-end leading-tight"
+                          title={formatStockDisplay(p.onHand, p.packSize, p.unit ?? "each")}
+                        >
+                          <span>{p.onHand}</span>
+                          {(p.packSize ?? 1) > 1 && (
+                            <span className="text-[10px]">
+                              ≈ {Math.floor(p.onHand / (p.packSize || 1))} case
+                              {Math.floor(p.onHand / (p.packSize || 1)) === 1 ? "" : "s"}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        "-"
+                      )}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {p.trackStock ? p.committed : "-"}

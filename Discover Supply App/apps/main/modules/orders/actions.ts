@@ -15,11 +15,18 @@ import {
   ORDER_TEMPLATES_MIGRATION_MESSAGE,
 } from "./template-db";
 
+// `quantity` is what the user typed against the chosen unit (e.g. 2 if they
+// picked Box, 12 if they picked Each). `unitPrice` is per-unit-of-measure —
+// per-box price when uom=box, per-each price when uom=each. `packSize` is the
+// multiplier applied at save time to compute the BASE-unit quantity persisted
+// on `order_items.quantity` and used for stock effects.
 const lineSchema = z.object({
   productId: z.string().uuid().optional(),
   name: z.string().min(1).max(200),
   sku: z.string().max(64).optional().or(z.literal("")),
   quantity: z.coerce.number().int().min(1),
+  unitOfMeasure: z.enum(["each", "box"]).default("each"),
+  packSize: z.coerce.number().int().min(1).default(1),
   unitPrice: z.coerce.number().min(0),
   discount: z.coerce.number().min(0).default(0),
   taxRate: z.coerce.number().min(0).max(1).default(0),
@@ -102,18 +109,27 @@ export async function createOrder(input: z.input<typeof createOrderSchema>) {
     .returning({ id: schema.orders.id, number: schema.orders.number });
 
   await db.insert(schema.orderItems).values(
-    totals.lines.map((l) => ({
-      orgId: org.id,
-      orderId: order.id,
-      productId: l.productId || null,
-      name: l.name,
-      sku: l.sku || null,
-      quantity: l.quantity,
-      unitPrice: String(l.unitPrice),
-      discount: String(l.discount),
-      taxRate: String(l.taxRate),
-      lineTotal: String(l.lineTotal),
-    })),
+    totals.lines.map((l) => {
+      const packSize = l.unitOfMeasure === "box" ? l.packSize : 1;
+      const baseQty = l.quantity * packSize;
+      return {
+        orgId: org.id,
+        orderId: order.id,
+        productId: l.productId || null,
+        name: l.name,
+        sku: l.sku || null,
+        // `quantity` is the BASE-unit count; `quantityInput` preserves what
+        // the user typed so the line renders the same way next time.
+        quantity: baseQty,
+        quantityInput: l.quantity,
+        unitOfMeasure: l.unitOfMeasure,
+        packSize,
+        unitPrice: String(l.unitPrice),
+        discount: String(l.discount),
+        taxRate: String(l.taxRate),
+        lineTotal: String(l.lineTotal),
+      };
+    }),
   );
 
   await db.insert(schema.orderStageHistory).values({
@@ -225,18 +241,25 @@ export async function replaceOrderItems(input: z.input<typeof editItemsSchema>) 
 
   await db.delete(schema.orderItems).where(eq(schema.orderItems.orderId, parsed.orderId));
   await db.insert(schema.orderItems).values(
-    totals.lines.map((l) => ({
-      orgId: org.id,
-      orderId: parsed.orderId,
-      productId: l.productId || null,
-      name: l.name,
-      sku: l.sku || null,
-      quantity: l.quantity,
-      unitPrice: String(l.unitPrice),
-      discount: String(l.discount),
-      taxRate: String(l.taxRate),
-      lineTotal: String(l.lineTotal),
-    })),
+    totals.lines.map((l) => {
+      const packSize = l.unitOfMeasure === "box" ? l.packSize : 1;
+      const baseQty = l.quantity * packSize;
+      return {
+        orgId: org.id,
+        orderId: parsed.orderId,
+        productId: l.productId || null,
+        name: l.name,
+        sku: l.sku || null,
+        quantity: baseQty,
+        quantityInput: l.quantity,
+        unitOfMeasure: l.unitOfMeasure,
+        packSize,
+        unitPrice: String(l.unitPrice),
+        discount: String(l.discount),
+        taxRate: String(l.taxRate),
+        lineTotal: String(l.lineTotal),
+      };
+    }),
   );
 
   await db
@@ -292,6 +315,7 @@ export async function browseOrderProducts(opts: { search?: string; limit?: numbe
     sku: p.sku,
     barcode: p.barcode,
     unit: p.unit,
+    packSize: p.packSize,
     price: p.price,
     onHand: p.onHand,
     committed: p.committed,

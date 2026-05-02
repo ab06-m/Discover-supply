@@ -37,6 +37,9 @@ export async function listProducts(
     .select({
       id: schema.products.id,
       name: schema.products.name,
+      kind: schema.products.kind,
+      brand: schema.products.brand,
+      vendor: schema.products.vendor,
       sku: schema.products.sku,
       barcode: schema.products.barcode,
       unit: schema.products.unit,
@@ -50,6 +53,9 @@ export async function listProducts(
       trackStock: schema.products.trackStock,
       isActive: schema.products.isActive,
       imageUrl: schema.products.imageUrl,
+      imageGallery: schema.products.imageGallery,
+      returnable: schema.products.returnable,
+      showInOnlineStore: schema.products.showInOnlineStore,
     })
     .from(schema.products)
     .where(where)
@@ -98,6 +104,12 @@ export async function searchProductSuggestions(orgId: string, query: string, lim
       name: schema.products.name,
       sku: schema.products.sku,
       barcode: schema.products.barcode,
+      unit: schema.products.unit,
+      packSize: schema.products.packSize,
+      imageUrl: schema.products.imageUrl,
+      price: schema.products.price,
+      onHand: schema.products.onHand,
+      committed: schema.products.committed,
     })
     .from(schema.products)
     .where(

@@ -35,6 +35,14 @@ export const productUnit = pgEnum("product_unit", [
   "gallon",
 ]);
 
+export const productKind = pgEnum("product_kind", ["goods", "service"]);
+
+// Quantity unit recorded on a stock movement or order line. The product itself
+// holds the case-pack size (`packSize`); this enum captures whether the user
+// entered the qty as individual units ("each") or as a multiple of the pack ("box").
+// Stock math always normalises to base units before touching `onHand`/`committed`.
+export const movementUnit = pgEnum("movement_unit", ["each", "box"]);
+
 export const categories = pgTable(
   "categories",
   {
@@ -57,8 +65,13 @@ export const products = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+    kind: productKind("kind").notNull().default("goods"),
     name: text("name").notNull(),
     description: text("description"),
+    salesDescription: text("sales_description"),
+    purchaseDescription: text("purchase_description"),
+    brand: text("brand"),
+    vendor: text("vendor"),
     sku: text("sku"),
     barcode: text("barcode"),
     unit: productUnit("unit").notNull().default("each"),
@@ -71,6 +84,9 @@ export const products = pgTable(
     lowStockThreshold: integer("low_stock_threshold"),
     trackStock: boolean("track_stock").notNull().default(true),
     imageUrl: text("image_url"),
+    imageGallery: jsonb("image_gallery").$type<string[]>().notNull().default([]),
+    returnable: boolean("returnable").notNull().default(true),
+    showInOnlineStore: boolean("show_in_online_store").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -100,6 +116,10 @@ export const stockMovements = pgTable(
     // For consume: affects BOTH (-on_hand AND -committed).
     onHandDelta: integer("on_hand_delta").notNull().default(0),
     committedDelta: integer("committed_delta").notNull().default(0),
+    // Audit trail of how the qty was entered. NULL on legacy rows = "each" with packSize=1.
+    quantityInput: integer("quantity_input"),
+    unitOfMeasure: movementUnit("unit_of_measure"),
+    packSize: integer("pack_size"),
     referenceType: text("reference_type"), // 'order' | 'receipt' | null
     referenceId: uuid("reference_id"),
     unitCost: numeric("unit_cost", { precision: 12, scale: 2 }),

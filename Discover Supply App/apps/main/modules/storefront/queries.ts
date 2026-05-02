@@ -7,7 +7,11 @@ export async function listCatalog(
   orgId: string,
   opts: { search?: string; category?: string } = {},
 ) {
-  const conds = [eq(schema.products.orgId, orgId), eq(schema.products.isActive, true)];
+  const conds = [
+    eq(schema.products.orgId, orgId),
+    eq(schema.products.isActive, true),
+    eq(schema.products.showInOnlineStore, true),
+  ];
   if (opts.category) conds.push(eq(schema.products.categoryId, opts.category));
   if (opts.search) {
     const w = or(
@@ -54,6 +58,7 @@ export async function getCatalogItem(orgId: string, id: string) {
         eq(schema.products.orgId, orgId),
         eq(schema.products.id, id),
         eq(schema.products.isActive, true),
+        eq(schema.products.showInOnlineStore, true),
       ),
     )
     .limit(1);

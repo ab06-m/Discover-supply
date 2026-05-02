@@ -11,11 +11,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarcodeScanner, BarcodeScanButton } from "./barcode-scanner";
 import { lookupByBarcode, receiveStock } from "../actions";
 
+type ProductUnit =
+  | "each"
+  | "case"
+  | "box"
+  | "pack"
+  | "kg"
+  | "lb"
+  | "liter"
+  | "gallon"
+  | null;
+
 type Line = {
   productId: string;
   name: string;
   sku: string | null;
+  imageUrl: string | null;
   quantity: number;
+  // How the user entered the qty. `packSize` is the multiplier when
+  // unitOfMeasure === "box"; the UI calls this a Case.
+  unitOfMeasure: "each" | "box";
+  packSize: number;
   unitCost?: number;
 };
 
@@ -23,7 +39,18 @@ type SearchHit = {
   id: string;
   name: string;
   sku: string | null;
+  packSize?: number | null;
+  unit?: ProductUnit;
+  imageUrl?: string | null;
 };
+
+// Treat products whose configured unit is a multi-pack as defaulting to case
+// entry on check-in. Each / kg / liter / etc. default to plain units.
+const BOX_UNITS: ReadonlySet<string> = new Set(["box", "case", "pack"]);
+function defaultUnitFor(p: Pick<SearchHit, "unit" | "packSize">): "each" | "box" {
+  if ((p.packSize ?? 1) > 1 && BOX_UNITS.has(p.unit ?? "")) return "box";
+  return "each";
+}
 
 type Props = {
   /** Callback to search products — provided by server component so we don't hit an API route */
@@ -46,13 +73,24 @@ export function ReceiveForm({ searchAction }: Props) {
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function addLine(p: { id: string; name: string; sku: string | null }) {
+  function addLine(p: SearchHit) {
     setLines((ls) => {
       const existing = ls.find((l) => l.productId === p.id);
       if (existing) {
         return ls.map((l) => (l.productId === p.id ? { ...l, quantity: l.quantity + 1 } : l));
       }
-      return [...ls, { productId: p.id, name: p.name, sku: p.sku, quantity: 1 }];
+      return [
+        ...ls,
+        {
+          productId: p.id,
+          name: p.name,
+          sku: p.sku,
+          imageUrl: p.imageUrl ?? null,
+          quantity: 1,
+          unitOfMeasure: defaultUnitFor(p),
+          packSize: Math.max(1, p.packSize ?? 1),
+        },
+      ];
     });
     setSearchQuery("");
     setSearchResults([]);
@@ -77,7 +115,14 @@ export function ReceiveForm({ searchAction }: Props) {
     setScanMessage(null);
     const product = await lookupByBarcode(code);
     if (product) {
-      addLine({ id: product.id, name: product.name, sku: product.sku });
+      addLine({
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        packSize: product.packSize,
+        unit: product.unit,
+        imageUrl: product.imageUrl,
+      });
       setScanMessage(`Added: ${product.name}`);
     } else {
       setScanMessage(`No product found for barcode ${code}. Add it in Products first.`);
@@ -90,6 +135,24 @@ export function ReceiveForm({ searchAction }: Props) {
   }
   function updateCost(productId: string, cost: number | undefined) {
     setLines((ls) => ls.map((l) => (l.productId === productId ? { ...l, unitCost: cost } : l)));
+  }
+  function updateUnit(productId: string, uom: "each" | "box") {
+    setLines((ls) =>
+      ls.map((l) => {
+        if (l.productId !== productId) return l;
+        // Switching to case keeps whatever packSize the product carried; if the
+        // user previously zeroed it out, fall back to a sane default of 1.
+        const nextPack = uom === "box" ? Math.max(1, l.packSize || 1) : 1;
+        return { ...l, unitOfMeasure: uom, packSize: nextPack };
+      }),
+    );
+  }
+  function updatePackSize(productId: string, size: number) {
+    setLines((ls) =>
+      ls.map((l) =>
+        l.productId === productId ? { ...l, packSize: Math.max(1, size || 1) } : l,
+      ),
+    );
   }
   function removeLine(productId: string) {
     setLines((ls) => ls.filter((l) => l.productId !== productId));
@@ -111,6 +174,8 @@ export function ReceiveForm({ searchAction }: Props) {
           items: lines.map((l) => ({
             productId: l.productId,
             quantity: l.quantity,
+            unitOfMeasure: l.unitOfMeasure,
+            packSize: l.packSize,
             unitCost: l.unitCost,
           })),
         });
@@ -144,10 +209,13 @@ export function ReceiveForm({ searchAction }: Props) {
                       key={p.id}
                       type="button"
                       onClick={() => addLine(p)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-secondary"
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-secondary"
                     >
-                      <span>{p.name}</span>
-                      {p.sku && <span className="text-xs text-muted-foreground">{p.sku}</span>}
+                      <span className="truncate">{p.name}</span>
+                      <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                        {(p.packSize ?? 1) > 1 && <span>case of {p.packSize}</span>}
+                        {p.sku && <span>{p.sku}</span>}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -172,54 +240,107 @@ export function ReceiveForm({ searchAction }: Props) {
                 <thead>
                   <tr className="border-b bg-muted/40 text-left">
                     <th className="p-2">Product</th>
+                    <th className="p-2 w-28">Receive as</th>
+                    <th className="p-2 w-24">Units/case</th>
                     <th className="p-2 w-24">Qty</th>
                     <th className="p-2 w-32">Unit cost</th>
                     <th className="p-2 w-10" />
                   </tr>
                 </thead>
                 <tbody>
-                  {lines.map((l) => (
-                    <tr key={l.productId} className="border-b">
-                      <td className="p-2">
-                        <div className="font-medium">{l.name}</div>
-                        {l.sku && <div className="text-xs text-muted-foreground">{l.sku}</div>}
-                      </td>
-                      <td className="p-2">
-                        <Input
-                          type="number"
-                          min={1}
-                          value={l.quantity}
-                          onChange={(e) => updateQty(l.productId, parseInt(e.target.value || "0", 10))}
-                        />
-                      </td>
-                      <td className="p-2">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          placeholder="—"
-                          value={l.unitCost ?? ""}
-                          onChange={(e) =>
-                            updateCost(
-                              l.productId,
-                              e.target.value === "" ? undefined : parseFloat(e.target.value),
-                            )
-                          }
-                        />
-                      </td>
-                      <td className="p-2">
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => removeLine(l.productId)}
-                          aria-label="Remove"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {lines.map((l) => {
+                    const isBox = l.unitOfMeasure === "box";
+                    const baseQty = isBox ? l.quantity * l.packSize : l.quantity;
+                    return (
+                      <tr key={l.productId} className="border-b align-top">
+                        <td className="p-2">
+                          <div className="flex items-start gap-2">
+                            {l.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={l.imageUrl}
+                                alt=""
+                                className="h-9 w-9 shrink-0 rounded border bg-muted object-cover"
+                              />
+                            ) : null}
+                            <div className="min-w-0">
+                              <div className="font-medium">{l.name}</div>
+                              {l.sku && (
+                                <div className="text-xs text-muted-foreground">{l.sku}</div>
+                              )}
+                              {isBox && (
+                                <div className="mt-0.5 text-xs text-muted-foreground">
+                                  {l.quantity.toLocaleString()} case
+                                  {l.quantity === 1 ? "" : "s"} x{" "}
+                                  {l.packSize.toLocaleString()} units ={" "}
+                                  {baseQty.toLocaleString()} units added
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <select
+                            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                            value={l.unitOfMeasure}
+                            onChange={(e) =>
+                              updateUnit(l.productId, e.target.value as "each" | "box")
+                            }
+                          >
+                            <option value="each">Unit</option>
+                            <option value="box">Case</option>
+                          </select>
+                        </td>
+                        <td className="p-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={l.packSize}
+                            disabled={!isBox}
+                            onChange={(e) =>
+                              updatePackSize(l.productId, parseInt(e.target.value || "1", 10))
+                            }
+                          />
+                        </td>
+                        <td className="p-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={l.quantity}
+                            onChange={(e) =>
+                              updateQty(l.productId, parseInt(e.target.value || "0", 10))
+                            }
+                          />
+                        </td>
+                        <td className="p-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            placeholder="—"
+                            value={l.unitCost ?? ""}
+                            onChange={(e) =>
+                              updateCost(
+                                l.productId,
+                                e.target.value === "" ? undefined : parseFloat(e.target.value),
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="p-2">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => removeLine(l.productId)}
+                            aria-label="Remove"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

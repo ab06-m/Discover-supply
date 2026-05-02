@@ -4,6 +4,7 @@ import { assertCan, type Role } from "@/lib/permissions";
 import { getProduct } from "@/modules/inventory/queries";
 import { ProductForm } from "@/modules/inventory/components/product-form";
 import { getInventorySettings } from "@/modules/inventory/lib/stock-rules";
+import { listCategories } from "@/modules/inventory/categories-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function EditProductPage({
@@ -15,7 +16,7 @@ export default async function EditProductPage({
   assertCan(role as Role, "product.write");
   const { defaultLowStockThreshold } = getInventorySettings(org.settings);
   const { id } = await params;
-  const product = await getProduct(org.id, id);
+  const [product, categories] = await Promise.all([getProduct(org.id, id), listCategories()]);
   if (!product) notFound();
 
   return (
@@ -33,6 +34,7 @@ export default async function EditProductPage({
             mode="edit"
             initial={product}
             defaultLowStockThreshold={defaultLowStockThreshold}
+            categories={categories}
           />
         </CardContent>
       </Card>

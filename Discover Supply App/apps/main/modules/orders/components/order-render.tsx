@@ -11,7 +11,13 @@ import type { OrderTemplateConfig } from "../schema";
 type OrderItem = {
   name: string;
   sku?: string | null;
+  // `quantity` is the BASE-unit count. `quantityInput` is what the user
+  // typed against `unitOfMeasure`; legacy lines without those fields render
+  // as plain eaches. `packSize` is the multiplier when `unitOfMeasure==="box"`.
   quantity: number;
+  quantityInput?: number | null;
+  unitOfMeasure?: "each" | "box" | null;
+  packSize?: number | null;
   unitPrice: string | number;
   discount?: string | number;
   taxRate?: string | number;
@@ -299,29 +305,42 @@ export function OrderRender(props: OrderRenderProps) {
             </tr>
           </thead>
           <tbody>
-            {items.map((it, i) => (
-              <tr
-                key={i}
-                className={
-                  isCompact
-                    ? "border-b border-dashed last:border-0"
-                    : "border-b last:border-0"
-                }
-                style={isCompact ? { borderColor: `${brand}40` } : undefined}
-              >
-                <td className="py-2 pr-3">
-                  <div className="font-medium">{it.name}</div>
-                  {it.sku && <div className="text-xs text-slate-500">SKU {it.sku}</div>}
-                </td>
-                <td className="py-2 px-2 text-right tabular-nums">{it.quantity}</td>
-                <td className="py-2 px-2 text-right tabular-nums">
-                  {formatMoney(it.unitPrice, org.currency)}
-                </td>
-                <td className="py-2 pl-2 text-right font-medium tabular-nums">
-                  {formatMoney(it.lineTotal, org.currency)}
-                </td>
-              </tr>
-            ))}
+            {items.map((it, i) => {
+              const displayQty = it.quantityInput ?? it.quantity;
+              const isBox = it.unitOfMeasure === "box";
+              const packSize = it.packSize ?? 1;
+              const nameSuffix = isBox && packSize > 1 ? ` · case of ${packSize}` : "";
+              return (
+                <tr
+                  key={i}
+                  className={
+                    isCompact
+                      ? "border-b border-dashed last:border-0"
+                      : "border-b last:border-0"
+                  }
+                  style={isCompact ? { borderColor: `${brand}40` } : undefined}
+                >
+                  <td className="py-2 pr-3">
+                    <div className="font-medium">
+                      {it.name}
+                      {nameSuffix && (
+                        <span className="ml-1 text-xs font-normal text-slate-500">
+                          {nameSuffix}
+                        </span>
+                      )}
+                    </div>
+                    {it.sku && <div className="text-xs text-slate-500">SKU {it.sku}</div>}
+                  </td>
+                  <td className="py-2 px-2 text-right tabular-nums">{displayQty}</td>
+                  <td className="py-2 px-2 text-right tabular-nums">
+                    {formatMoney(it.unitPrice, org.currency)}
+                  </td>
+                  <td className="py-2 pl-2 text-right font-medium tabular-nums">
+                    {formatMoney(it.lineTotal, org.currency)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

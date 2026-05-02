@@ -34,8 +34,18 @@ type Line = {
   name: string;
   sku: string | null;
   imageUrl?: string | null;
+  // `quantity` is the number entered against `unitOfMeasure`. The base-unit
+  // count actually committed against stock is `quantity * packSize` when the
+  // user sells by Case, else `quantity`.
   quantity: number;
+  unitOfMeasure: "each" | "box";
+  packSize: number;
   unitPrice: number;
+  // Per-each price captured when the line was added — used to auto-derive the
+  // displayed `unitPrice` when the user toggles between Unit and Case, unless
+  // they've manually edited the price (then we leave it alone).
+  defaultUnitPriceEach: number;
+  unitPriceTouched: boolean;
   discount: number;
   taxRate: number;
   onHand?: number;
@@ -49,11 +59,18 @@ type ProductHit = {
   sku: string | null;
   barcode?: string | null;
   unit?: string | null;
+  packSize?: number | null;
   imageUrl?: string | null;
   price: string | number;
   onHand: number;
   committed: number;
 };
+
+const BOX_UNITS: ReadonlySet<string> = new Set(["box", "case", "pack"]);
+function defaultUomFor(p: Pick<ProductHit, "unit" | "packSize">): "each" | "box" {
+  if ((p.packSize ?? 1) > 1 && BOX_UNITS.has(p.unit ?? "")) return "box";
+  return "each";
+}
 
 type Props = {
   customers: CustomerOption[];
@@ -141,6 +158,9 @@ export function OrderForm({
           l.productId === p.id ? { ...l, quantity: l.quantity + 1 } : l,
         );
       }
+      const priceEach = parseFloat(String(p.price)) || 0;
+      const packSize = Math.max(1, p.packSize ?? 1);
+      const uom = defaultUomFor(p);
       return [
         ...ls,
         {
@@ -150,7 +170,14 @@ export function OrderForm({
           sku: p.sku,
           imageUrl: p.imageUrl ?? null,
           quantity: 1,
-          unitPrice: parseFloat(String(p.price)) || 0,
+          unitOfMeasure: uom,
+          packSize,
+          // Displayed price tracks the chosen unit: per-case when cased,
+          // per-unit when not. The unit price is preserved separately so
+          // toggling units stays consistent.
+          unitPrice: uom === "box" ? priceEach * packSize : priceEach,
+          defaultUnitPriceEach: priceEach,
+          unitPriceTouched: false,
           discount: 0,
           taxRate: defaultTaxRate,
           onHand: p.onHand,
@@ -187,6 +214,9 @@ export function OrderForm({
         id: p.id,
         name: p.name,
         sku: p.sku,
+        unit: p.unit,
+        packSize: p.packSize,
+        imageUrl: p.imageUrl,
         price: p.price,
         onHand: p.onHand,
         committed: p.committed,
@@ -199,6 +229,41 @@ export function OrderForm({
 
   function updateLine(key: string, patch: Partial<Line>) {
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+  // The user typed in the price field — flag the line so we don't overwrite
+  // their value when they toggle Unit/Case afterwards.
+  function updatePrice(key: string, price: number) {
+    setLines((ls) =>
+      ls.map((l) => (l.key === key ? { ...l, unitPrice: price, unitPriceTouched: true } : l)),
+    );
+  }
+  function changeUnit(key: string, uom: "each" | "box") {
+    setLines((ls) =>
+      ls.map((l) => {
+        if (l.key !== key) return l;
+        const packSize = uom === "box" ? Math.max(1, l.packSize || 1) : 1;
+        // Auto-derive the displayed price unless the user has overridden it.
+        const unitPrice = l.unitPriceTouched
+          ? l.unitPrice
+          : uom === "box"
+            ? l.defaultUnitPriceEach * packSize
+            : l.defaultUnitPriceEach;
+        return { ...l, unitOfMeasure: uom, packSize, unitPrice };
+      }),
+    );
+  }
+  function changePackSize(key: string, size: number) {
+    setLines((ls) =>
+      ls.map((l) => {
+        if (l.key !== key) return l;
+        const packSize = Math.max(1, size || 1);
+        const unitPrice =
+          l.unitPriceTouched || l.unitOfMeasure !== "box"
+            ? l.unitPrice
+            : l.defaultUnitPriceEach * packSize;
+        return { ...l, packSize, unitPrice };
+      }),
+    );
   }
   function removeLine(key: string) {
     setLines((ls) => ls.filter((l) => l.key !== key));
@@ -214,7 +279,11 @@ export function OrderForm({
         name: "",
         sku: null,
         quantity: 1,
+        unitOfMeasure: "each",
+        packSize: 1,
         unitPrice: 0,
+        defaultUnitPriceEach: 0,
+        unitPriceTouched: false,
         discount: 0,
         taxRate: defaultTaxRate,
       },
@@ -248,6 +317,8 @@ export function OrderForm({
             name: l.name,
             sku: l.sku || undefined,
             quantity: l.quantity,
+            unitOfMeasure: l.unitOfMeasure,
+            packSize: l.packSize,
             unitPrice: l.unitPrice,
             discount: l.discount,
             taxRate: l.taxRate,
@@ -388,7 +459,14 @@ export function OrderForm({
                               className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-accent"
                             >
                               <div className="min-w-0">
-                                <div className="truncate text-sm font-medium">{p.name}</div>
+                                <div className="truncate text-sm font-medium">
+                                  {p.name}
+                                  {(p.packSize ?? 1) > 1 && (
+                                    <span className="ml-1 text-xs text-muted-foreground">
+                                      · case of {p.packSize}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="truncate text-xs text-muted-foreground">
                                   {p.barcode ? `Barcode: ${p.barcode}` : p.sku ? `SKU: ${p.sku}` : "—"}
                                 </div>
@@ -426,7 +504,7 @@ export function OrderForm({
                     <div>Product</div>
                     <div>Price</div>
                     <div>Quantity</div>
-                    <div>Unit</div>
+                    <div>Sell as</div>
                     <div className="text-right">Total</div>
                     <div />
                   </div>
@@ -435,10 +513,21 @@ export function OrderForm({
                       const gross = l.unitPrice * l.quantity;
                       const afterDisc = Math.max(0, gross - l.discount);
                       const lineTotal = afterDisc + afterDisc * l.taxRate;
+                      const isBox = l.unitOfMeasure === "box";
+                      const baseQty = isBox ? l.quantity * l.packSize : l.quantity;
+                      const available =
+                        l.onHand !== undefined && l.committed !== undefined
+                          ? l.onHand - l.committed
+                          : null;
+                      const overSold = available !== null && baseQty > available;
                       const status =
                         l.onHand !== undefined && l.committed !== undefined
                           ? stockText({ onHand: l.onHand, committed: l.committed }, lowStockThreshold)
                           : null;
+                      // The trailing case tag (e.g. "case of 12") staff have been
+                      // typing into product names. Now the form appends it
+                      // automatically when the line is sold by the case.
+                      const nameSuffix = isBox && l.packSize > 1 ? ` · case of ${l.packSize}` : "";
                       return (
                         <div key={l.key}>
                           <div className="flex flex-col gap-3 p-3 sm:grid sm:grid-cols-[1fr_140px_120px_120px_120px_36px] sm:items-center sm:gap-3 sm:p-3">
@@ -469,17 +558,39 @@ export function OrderForm({
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <Input
-                                  className="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-                                  value={l.name}
-                                  onChange={(e) => updateLine(l.key, { name: e.target.value })}
-                                  placeholder="Item name"
-                                />
-                                {status ? (
+                                <div className="flex flex-wrap items-baseline gap-1">
+                                  <Input
+                                    className="min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                                    value={l.name}
+                                    onChange={(e) => updateLine(l.key, { name: e.target.value })}
+                                    placeholder="Item name"
+                                  />
+                                  {nameSuffix && (
+                                    <span
+                                      className="text-xs font-medium text-muted-foreground"
+                                      title={`Case of ${l.packSize}`}
+                                    >
+                                      {nameSuffix}
+                                    </span>
+                                  )}
+                                </div>
+                                {overSold ? (
+                                  <div className="text-xs font-medium text-destructive">
+                                    Exceeds available ({available} each)
+                                  </div>
+                                ) : status ? (
                                   <div className={cn("text-xs", status.className)}>{status.text}</div>
                                 ) : l.sku ? (
                                   <div className="text-xs text-muted-foreground">{l.sku}</div>
                                 ) : null}
+                                {isBox && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {l.quantity.toLocaleString()} case
+                                    {l.quantity === 1 ? "" : "s"} x{" "}
+                                    {l.packSize.toLocaleString()} units ={" "}
+                                    {baseQty.toLocaleString()} units from stock
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div className="relative">
@@ -489,7 +600,7 @@ export function OrderForm({
                                 min={0}
                                 value={l.unitPrice}
                                 onChange={(e) =>
-                                  updateLine(l.key, { unitPrice: parseFloat(e.target.value || "0") })
+                                  updatePrice(l.key, parseFloat(e.target.value || "0"))
                                 }
                                 className="pr-12"
                               />
@@ -507,10 +618,30 @@ export function OrderForm({
                                 })
                               }
                             />
-                            {/* TODO: wire unit dropdown to product UoM when units feature ships */}
-                            <Select defaultValue="pcs">
-                              <option value="pcs">Pcs</option>
-                            </Select>
+                            <div className="flex flex-col gap-1">
+                              <Select
+                                value={l.unitOfMeasure}
+                                onChange={(e) =>
+                                  changeUnit(l.key, e.target.value as "each" | "box")
+                                }
+                              >
+                                <option value="each">Unit</option>
+                                <option value="box">Case</option>
+                              </Select>
+                              {isBox && (
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={l.packSize}
+                                  onChange={(e) =>
+                                    changePackSize(l.key, parseInt(e.target.value || "1", 10))
+                                  }
+                                  aria-label="Units per case"
+                                  title="Units per case"
+                                  className="h-8 text-xs"
+                                />
+                              )}
+                            </div>
                             <div className="text-right text-sm font-semibold tabular-nums">
                               {formatMoney(lineTotal, currency)}
                             </div>
@@ -753,7 +884,14 @@ function BrowseProductsDialog({
                       )}
                     </div>
                     <div>
-                      <div className="text-sm font-medium">{p.name}</div>
+                      <div className="text-sm font-medium">
+                        {p.name}
+                        {(p.packSize ?? 1) > 1 && (
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            · case of {p.packSize}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {p.sku ?? p.barcode ?? "—"} · {formatMoney(p.price, currency)}
                       </div>
