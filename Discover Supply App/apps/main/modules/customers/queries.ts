@@ -23,7 +23,7 @@ export async function listCustomers(
   const openOrders = db
     .select({
       customerId: schema.orders.customerId,
-      total: count(),
+      total: count().as("total"),
     })
     .from(schema.orders)
     .innerJoin(schema.orderStages, eq(schema.orderStages.id, schema.orders.stageId))

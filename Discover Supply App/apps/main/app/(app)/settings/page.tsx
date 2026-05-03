@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Upload } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -138,6 +139,23 @@ export default async function SettingsPage() {
           <CardContent>
             <Button asChild>
               <Link href="/settings/templates">Manage invoice templates</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle>Data Import</CardTitle>
+            <CardDescription>
+              Import products and customers from supported CSV exports.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline">
+              <Link href="/import">
+                <Upload className="mr-2 h-4 w-4" />
+                Open import tools
+              </Link>
             </Button>
           </CardContent>
         </Card>

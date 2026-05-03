@@ -56,12 +56,12 @@ export function CustomerForm({ mode, initial }: Props) {
     <form onSubmit={onSubmit} className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Store details</CardTitle>
+          <CardTitle>Customer details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="name">Store name *</Label>
+              <Label htmlFor="name">Customer name *</Label>
               <Input id="name" name="name" required defaultValue={initial?.name ?? ""} />
             </div>
             <div className="space-y-2">
@@ -146,7 +146,7 @@ export function CustomerForm({ mode, initial }: Props) {
 
       <div className="flex gap-2">
         <Button type="submit" disabled={submitting}>
-          {submitting ? "Saving…" : mode === "create" ? "Add store" : "Save changes"}
+          {submitting ? "Saving..." : mode === "create" ? "Add customer" : "Save changes"}
         </Button>
         <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
       </div>

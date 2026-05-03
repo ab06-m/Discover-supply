@@ -1,5 +1,5 @@
 import { db, schema } from "@/lib/db";
-import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 
 const DEFAULT_LIST_LIMIT = 100;
 
@@ -20,6 +20,32 @@ export async function listOrders(
     if (w) conditions.push(w);
   }
 
+  const itemSummaries = db
+    .select({
+      orderId: schema.orderItems.orderId,
+      itemCount: count().as("item_count"),
+      itemCostTotal: sql<string>`coalesce(sum(${schema.orderItems.quantity} * coalesce(${schema.products.cost}, 0)), 0)`.as(
+        "item_cost_total",
+      ),
+    })
+    .from(schema.orderItems)
+    .leftJoin(schema.products, eq(schema.products.id, schema.orderItems.productId))
+    .where(eq(schema.orderItems.orgId, orgId))
+    .groupBy(schema.orderItems.orderId)
+    .as("order_item_summaries");
+
+  const dispatchSummaries = db
+    .select({
+      orderId: schema.dispatches.orderId,
+      deliveryStatus: sql<string | null>`max(${schema.dispatches.status}::text)`.as(
+        "delivery_status",
+      ),
+    })
+    .from(schema.dispatches)
+    .where(eq(schema.dispatches.orgId, orgId))
+    .groupBy(schema.dispatches.orderId)
+    .as("dispatch_summaries");
+
   return db
     .select({
       id: schema.orders.id,
@@ -35,10 +61,26 @@ export async function listOrders(
       customerId: schema.orders.customerId,
       customerName: schema.customers.name,
       storeCode: schema.customers.storeCode,
+      customerEmail: schema.customers.email,
+      customerPhone: schema.customers.phone,
+      customerBillingAddress: schema.customers.billingAddress,
+      customerShippingAddress: schema.customers.shippingAddress,
+      customerPaymentTerms: schema.customers.paymentTerms,
+      customerTaxId: schema.customers.taxId,
+      customerNotes: schema.customers.notes,
+      customerIsActive: schema.customers.isActive,
+      salesRepName: schema.profiles.fullName,
+      salesRepEmail: schema.profiles.email,
+      deliveryStatus: dispatchSummaries.deliveryStatus,
+      itemCount: sql<number>`coalesce(${itemSummaries.itemCount}, 0)::int`,
+      profit: sql<string>`${schema.orders.total} - coalesce(${itemSummaries.itemCostTotal}, 0)`,
     })
     .from(schema.orders)
     .leftJoin(schema.orderStages, eq(schema.orderStages.id, schema.orders.stageId))
     .leftJoin(schema.customers, eq(schema.customers.id, schema.orders.customerId))
+    .leftJoin(schema.profiles, eq(schema.profiles.id, schema.orders.createdBy))
+    .leftJoin(itemSummaries, eq(itemSummaries.orderId, schema.orders.id))
+    .leftJoin(dispatchSummaries, eq(dispatchSummaries.orderId, schema.orders.id))
     .where(and(...conditions))
     .orderBy(desc(schema.orders.createdAt))
     .limit(limit);

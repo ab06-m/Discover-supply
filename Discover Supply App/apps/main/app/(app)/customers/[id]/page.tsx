@@ -46,7 +46,7 @@ export default async function CustomerDetailPage({
     <div className="space-y-4">
       <div>
         <Link href="/customers" className="inline-flex items-center text-sm text-muted-foreground hover:underline">
-          <ArrowLeft className="mr-1 h-4 w-4" /> Back to stores
+          <ArrowLeft className="mr-1 h-4 w-4" /> Back to customers
         </Link>
       </div>
 

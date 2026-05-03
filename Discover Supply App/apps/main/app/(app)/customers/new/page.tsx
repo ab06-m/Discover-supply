@@ -9,7 +9,7 @@ export default async function NewCustomerPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Add store</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Add customer</h1>
         <p className="text-sm text-muted-foreground">Set up a new wholesale customer.</p>
       </div>
       <CustomerForm mode="create" />

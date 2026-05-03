@@ -24,12 +24,12 @@ export default async function CustomersPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Stores"
-        subtitle={`${rows.length} store${rows.length === 1 ? "" : "s"}`}
+        title="Customers"
+        subtitle={`${rows.length} customer${rows.length === 1 ? "" : "s"}`}
         actions={
           <Button asChild>
             <Link href="/customers/new">
-              <Plus className="mr-2 h-4 w-4" /> Add store
+              <Plus className="mr-2 h-4 w-4" /> Add customer
             </Link>
           </Button>
         }
@@ -42,16 +42,16 @@ export default async function CustomersPage({
       {rows.length === 0 ? (
         <EmptyState
           icon={Store}
-          title={q ? "No stores match your search" : "No stores yet"}
+          title={q ? "No customers match your search" : "No customers yet"}
           description={
             q
               ? "Try a different name, store code, email, or phone number."
-              : "Add store records so orders, invoices, and deliveries have a customer destination."
+              : "Add customer records so orders, invoices, and deliveries have a destination."
           }
           action={
             !q ? (
               <Button asChild>
-                <Link href="/customers/new">Add your first store</Link>
+                <Link href="/customers/new">Add your first customer</Link>
               </Button>
             ) : null
           }
@@ -61,7 +61,7 @@ export default async function CustomersPage({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Store</TableHead>
+                <TableHead>Customer</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Terms</TableHead>

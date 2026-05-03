@@ -17,7 +17,6 @@ import {
   Store,
   Sun,
   Truck,
-  Upload,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -27,15 +26,14 @@ import { useTheme } from "@/components/app/theme-provider";
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
 const nav: NavItem[] = [
-  { href: "/sell", label: "Sell", icon: ShoppingBasket },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/products", label: "Inventory", icon: Package },
-  { href: "/check-in", label: "Check in", icon: PackagePlus },
-  { href: "/import", label: "Import", icon: Upload },
+  { href: "/sell", label: "Sell", icon: ShoppingBasket },
   { href: "/orders", label: "Orders", icon: ShoppingCart },
   { href: "/invoices", label: "Invoices", icon: FileText },
+  { href: "/customers", label: "Customers", icon: Store },
+  { href: "/products", label: "Inventory", icon: Package },
+  { href: "/check-in", label: "Check in", icon: PackagePlus },
   { href: "/delivery", label: "Delivery", icon: Truck },
-  { href: "/customers", label: "Stores", icon: Store },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

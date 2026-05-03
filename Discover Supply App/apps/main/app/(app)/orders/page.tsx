@@ -5,18 +5,9 @@ import { listOrders, listStages } from "@/modules/orders/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { PageHeader } from "@/components/app/page-header";
 import { EmptyState } from "@/components/app/empty-state";
-import { formatMoney } from "@/lib/utils";
+import { OrdersList, type OrdersListRow } from "@/modules/orders/components/orders-list";
 
 export const dynamic = "force-dynamic";
 
@@ -86,58 +77,15 @@ export default async function OrdersPage({
           }
         />
       ) : (
-        <Card className="overflow-hidden shadow-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order</TableHead>
-                <TableHead>Store</TableHead>
-                <TableHead>Stage</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((o) => (
-                <TableRow key={o.id}>
-                  <TableCell>
-                    <Link href={`/orders/${o.id}`} className="font-medium hover:underline">
-                      {o.number}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    {o.customerName ? (
-                      <>
-                        <div>{o.customerName}</div>
-                        {o.storeCode && (
-                          <div className="text-xs text-muted-foreground">{o.storeCode}</div>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {o.stageName && (
-                      <span
-                        className="rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
-                        style={{ backgroundColor: o.stageColor ?? "#64748b" }}
-                      >
-                        {o.stageName}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(o.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatMoney(o.total, org.currency)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+        <OrdersList
+          rows={rows.map(
+            (order): OrdersListRow => ({
+              ...order,
+              createdAt: order.createdAt.toISOString(),
+            }),
+          )}
+          currency={org.currency}
+        />
       )}
     </div>
   );

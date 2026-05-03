@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   Barcode,
   ChevronRight,
+  ClipboardList,
   ImageIcon,
   LayoutGrid,
   List,
@@ -16,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { cn, formatMoney } from "@/lib/utils";
@@ -121,6 +123,8 @@ export function SellCart({
   const [onlyAvailable, setOnlyAvailable] = useState(true);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [scanOpen, setScanOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [remoteResults, setRemoteResults] = useState<Product[]>([]);
   const [searching, setSearching] = useState(false);
@@ -163,6 +167,15 @@ export function SellCart({
   const total = taxable + tax;
   const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
   const selectedCustomer = customers.find((customer) => customer.id === customerId);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  function toggleMobileSearch() {
+    setMobileSearchOpen((open) => {
+      const nextOpen = !open;
+      if (nextOpen) window.setTimeout(() => searchInputRef.current?.focus(), 0);
+      return nextOpen;
+    });
+  }
 
   async function runSearch(value: string) {
     setQuery(value);
@@ -264,6 +277,7 @@ export function SellCart({
             };
           }),
         });
+        setCartOpen(false);
         router.push(`/orders/${response.id}`);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not create the sale.");
@@ -273,39 +287,122 @@ export function SellCart({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="hidden flex-col gap-3 sm:flex sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-normal text-foreground">Sell</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Fast staff cart for walk-in sales, phone orders, and back-office checkout.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={() => setScanOpen(true)}>
-            <Barcode className="mr-2 h-4 w-4" />
-            Scan
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => document.getElementById("sell-cart")?.scrollIntoView({ behavior: "smooth" })}
+          >
+            <ShoppingCart className="mr-2 h-4 w-4" />
+            Cart{itemCount > 0 ? ` (${itemCount})` : ""}
           </Button>
           <Button type="button" onClick={submitSale} disabled={isPending || cart.length === 0}>
-            {isPending ? "Saving..." : "Go to payment"}
+            {isPending ? "Saving..." : "Go to Order"}
             <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
         <section className="min-w-0 space-y-4">
-          <div className="rounded-lg border bg-card p-3 shadow-card">
-            <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_240px_auto_auto] lg:items-center">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="h-12 pl-10 text-base"
-                  placeholder="Name, SKU, or barcode"
-                  value={query}
-                  onChange={(event) => runSearch(event.target.value)}
-                />
+          <div className="flex items-center justify-center gap-3 sm:hidden">
+            <button
+              type="button"
+              onClick={toggleMobileSearch}
+              className={cn(
+                "group inline-flex h-16 w-16 items-center justify-center rounded-2xl border bg-card text-muted-foreground shadow-card transition hover:border-sky-400/50 hover:bg-sky-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                mobileSearchOpen && "border-sky-400/70 bg-sky-500/10 ring-1 ring-sky-400/50",
+              )}
+              aria-label="Search products"
+              title="Search products"
+            >
+              <Search className="h-7 w-7 transition-colors group-hover:text-sky-300" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              className="group relative inline-flex h-16 w-16 items-center justify-center rounded-2xl border bg-card text-muted-foreground shadow-card transition hover:border-blue-400/50 hover:bg-blue-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`Cart${itemCount > 0 ? `, ${itemCount} items` : ""}`}
+              title="Cart"
+            >
+              <ShoppingCart className="h-7 w-7 transition-colors group-hover:text-blue-300" />
+              {itemCount > 0 && (
+                <span className="absolute right-2 top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-bold text-primary-foreground">
+                  {itemCount}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={submitSale}
+              disabled={isPending || cart.length === 0}
+              className="group inline-flex h-16 w-16 items-center justify-center rounded-2xl border bg-card text-muted-foreground shadow-card transition hover:border-emerald-400/50 hover:bg-emerald-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Go to Order"
+              title="Go to Order"
+            >
+              <ClipboardList className="h-7 w-7 transition-colors group-hover:text-emerald-300" />
+              <ChevronRight className="-ml-1 h-5 w-5 transition-colors group-hover:text-emerald-300" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setScanOpen(true)}
+              className="group inline-flex h-16 w-16 items-center justify-center rounded-2xl border bg-card text-muted-foreground shadow-card transition hover:border-violet-400/50 hover:bg-violet-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Scan barcode"
+              title="Scan barcode"
+            >
+              <Barcode className="h-7 w-7 transition-colors group-hover:text-violet-300" />
+            </button>
+          </div>
+
+          <div
+            className={cn(
+              "sticky top-20 z-20 rounded-lg border bg-card/95 p-2 shadow-card backdrop-blur",
+              mobileSearchOpen ? "block" : "hidden sm:block",
+            )}
+          >
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                ref={searchInputRef}
+                className="h-12 pl-10 pr-12 text-base"
+                placeholder="Name, SKU, or barcode"
+                value={query}
+                onChange={(event) => runSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setMobileSearchOpen(false);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setScanOpen(true)}
+                className="group absolute right-2 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md border bg-background text-muted-foreground transition hover:border-violet-400/50 hover:bg-violet-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                aria-label="Scan barcode"
+                title="Scan barcode"
+              >
+                <Barcode className="h-5 w-5 transition-colors group-hover:text-violet-300" />
+              </button>
+            </div>
+            {(searching || scanMessage) && (
+              <div className="mt-2 px-1 text-xs text-muted-foreground">
+                {searching ? "Searching products..." : scanMessage}
               </div>
-              <Select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+            )}
+          </div>
+
+          <div className="rounded-lg border bg-card p-2 shadow-card sm:p-3">
+            <div className="grid grid-cols-[minmax(120px,1fr)_auto_92px] items-center gap-2 sm:grid-cols-[minmax(260px,1fr)_auto_auto] sm:gap-3">
+              <Select
+                className="h-9 truncate px-2 py-1.5 text-xs sm:h-10 sm:px-3 sm:py-2 sm:text-sm"
+                value={categoryId}
+                onChange={(event) => setCategoryId(event.target.value)}
+              >
                 <option value="">All categories</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
@@ -313,47 +410,42 @@ export function SellCart({
                   </option>
                 ))}
               </Select>
-              <label className="inline-flex h-10 items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium">
+              <label className="inline-flex h-9 min-w-0 items-center gap-1.5 rounded-md border bg-background px-2 text-xs font-medium sm:h-10 sm:gap-2 sm:px-3 sm:text-sm">
                 <input
                   type="checkbox"
                   className="h-4 w-4 accent-primary"
                   checked={onlyAvailable}
                   onChange={(event) => setOnlyAvailable(event.target.checked)}
                 />
-                In stock
+                <span className="whitespace-nowrap">In stock</span>
               </label>
-              <div className="inline-flex h-10 rounded-md border bg-background p-1">
+              <div className="grid h-9 grid-cols-2 rounded-md border bg-background p-1 sm:inline-flex sm:h-10 sm:shrink-0">
                 <button
                   type="button"
                   onClick={() => setViewMode("grid")}
                   className={cn(
-                    "inline-flex h-8 w-8 items-center justify-center rounded",
+                    "inline-flex h-7 items-center justify-center rounded sm:h-8 sm:w-8",
                     viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
                   )}
                   aria-label="Grid view"
                   title="Grid view"
                 >
-                  <LayoutGrid className="h-4 w-4" />
+                  <LayoutGrid className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setViewMode("list")}
                   className={cn(
-                    "inline-flex h-8 w-8 items-center justify-center rounded",
+                    "inline-flex h-7 items-center justify-center rounded sm:h-8 sm:w-8",
                     viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
                   )}
                   aria-label="List view"
                   title="List view"
                 >
-                  <List className="h-4 w-4" />
+                  <List className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </button>
               </div>
             </div>
-            {(searching || scanMessage) && (
-              <div className="mt-2 text-xs text-muted-foreground">
-                {searching ? "Searching products..." : scanMessage}
-              </div>
-            )}
           </div>
 
           {filteredProducts.length === 0 ? (
@@ -393,8 +485,8 @@ export function SellCart({
           )}
         </section>
 
-        <aside className="min-w-0 xl:sticky xl:top-20 xl:self-start">
-          <div className="overflow-hidden rounded-lg border bg-card shadow-card">
+        <aside id="sell-cart" className="hidden min-w-0 scroll-mt-24 sm:block lg:sticky lg:top-20 lg:self-start">
+          <CartPanel className="overflow-hidden rounded-lg border bg-card shadow-card">
             <div className="border-b p-4">
               <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-primary">
                 <Tag className="h-4 w-4" />
@@ -522,14 +614,153 @@ export function SellCart({
                   disabled={isPending || cart.length === 0}
                   className="bg-success text-success-foreground hover:bg-success/90"
                 >
-                  {isPending ? "Saving..." : "Go to payment"}
+                  {isPending ? "Saving..." : "Go to Order"}
                   <ChevronRight className="ml-2 h-5 w-5" />
                 </Button>
               </div>
             </div>
-          </div>
+          </CartPanel>
         </aside>
       </div>
+
+      <Dialog open={cartOpen} onOpenChange={setCartOpen}>
+        <DialogContent title="Cart" className="max-h-[92vh] max-w-[calc(100vw-2rem)] overflow-hidden p-0 sm:hidden">
+          <CartPanel className="flex max-h-[calc(92vh-49px)] flex-col bg-card">
+            <div className="shrink-0 border-b p-4">
+              <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-primary">
+                <Tag className="h-4 w-4" />
+                Select customer
+              </div>
+              <Select value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+                <option value="">Walk-in customer</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.storeCode ? `${customer.storeCode} - ` : ""}
+                    {customer.name}
+                  </option>
+                ))}
+              </Select>
+              {selectedCustomer?.paymentTerms && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Terms: {selectedCustomer.paymentTerms}
+                </p>
+              )}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin">
+              {cart.length === 0 ? (
+                <div className="flex h-44 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 text-center">
+                  <ShoppingCart className="h-8 w-8 text-muted-foreground" />
+                  <p className="mt-3 text-sm font-medium">Cart is empty</p>
+                  <p className="mt-1 max-w-56 text-xs text-muted-foreground">
+                    Tap product tiles or scan barcodes to build the sale.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {cart.map((line) => (
+                    <CartLineItem
+                      key={line.key}
+                      currency={currency}
+                      line={line}
+                      onDecrease={() => setQuantity(line.key, line.quantity - 1)}
+                      onIncrease={() => setQuantity(line.key, line.quantity + 1)}
+                      onQuantityChange={(quantity) => setQuantity(line.key, quantity)}
+                      onRemove={() => removeLine(line.key)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="shrink-0 border-t p-4">
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span>{itemCount} item{itemCount === 1 ? "" : "s"}</span>
+                  <span>Subtotal: {formatMoney(subtotal, currency)}</span>
+                </div>
+                {discountOpen ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={subtotal}
+                      step="0.01"
+                      value={discount}
+                      onChange={(event) => setDiscount(parseFloat(event.target.value || "0"))}
+                      aria-label="Discount amount"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDiscount(0);
+                        setDiscountOpen(false);
+                      }}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
+                      aria-label="Remove discount"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setDiscountOpen(true)}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    Add discount
+                  </button>
+                )}
+                {safeDiscount > 0 && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Discount</span>
+                    <span>-{formatMoney(safeDiscount, currency)}</span>
+                  </div>
+                )}
+                {tax > 0 && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Tax</span>
+                    <span>{formatMoney(tax, currency)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-2 text-xl font-bold">
+                  <span>Total</span>
+                  <span>{formatMoney(total, currency)}</span>
+                </div>
+              </div>
+
+              {error && <p className="mt-3 text-sm font-medium text-destructive">{error}</p>}
+
+              <div className="mt-4 grid grid-cols-[52px_1fr] gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    setCart([]);
+                    setDiscount(0);
+                    setError(null);
+                  }}
+                  disabled={cart.length === 0 || isPending}
+                  aria-label="Clear cart"
+                  title="Clear cart"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </Button>
+                <Button
+                  type="button"
+                  onClick={submitSale}
+                  disabled={isPending || cart.length === 0}
+                  className="bg-success text-success-foreground hover:bg-success/90"
+                >
+                  {isPending ? "Saving..." : "Go to Order"}
+                  <ChevronRight className="ml-2 h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+          </CartPanel>
+        </DialogContent>
+      </Dialog>
 
       <BarcodeScanner
         open={scanOpen}
@@ -539,6 +770,16 @@ export function SellCart({
       />
     </div>
   );
+}
+
+function CartPanel({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={className}>{children}</div>;
 }
 
 function ProductTile({
