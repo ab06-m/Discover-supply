@@ -8,6 +8,20 @@ import { getReportSnapshot, resolveDateRange } from "@/modules/reports/queries";
 
 export const dynamic = "force-dynamic";
 
+const apiReports = [
+  "inventory-turnover",
+  "inventory-aging",
+  "stock-movement",
+  "low-stock",
+  "top-selling-products",
+  "slow-dead-inventory",
+  "gross-margin-by-product",
+  "customer-purchase-behavior",
+  "sales-by-category",
+  "inventory-valuation",
+  "customer-reorder-prediction",
+];
+
 function formatMoney(value: string, currency: string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(Number(value ?? 0));
 }
@@ -106,6 +120,15 @@ export default async function ReportsPage({
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader><CardTitle>Report API endpoints</CardTitle><CardDescription>Use format=json or format=csv with pagination filters.</CardDescription></CardHeader>
+        <CardContent className="grid gap-2 text-sm">
+          {apiReports.map((name) => (
+            <code key={name} className="rounded bg-muted px-2 py-1">{`GET /api/reports/${name}?start=2026-01-01&end=2026-05-05&page=1&pageSize=50&format=json`}</code>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
 }
