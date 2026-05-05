@@ -30,14 +30,20 @@ export default async function CheckInPage({
     const { org: o, role: r } = await requireActiveOrg();
     assertCan(r as Role, "product.read");
     const rows = await listProducts(o.id, { search: query, limit: 10 });
-    return rows.map((p) => ({
-      id: p.id,
-      name: p.name,
-      sku: p.sku,
-      packSize: p.packSize,
-      unit: p.unit,
-      imageUrl: p.imageUrl,
-    }));
+    return rows
+      .filter((p) => p.kind === "goods" && p.trackStock && p.isActive)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        packSize: p.packSize,
+        unit: p.unit,
+        imageUrl: p.imageUrl,
+        price: p.price,
+        cost: p.cost,
+        onHand: p.onHand,
+        committed: p.committed,
+      }));
   }
 
   const categories = await listCategories();
@@ -92,8 +98,8 @@ export default async function CheckInPage({
           currency={org.currency}
         />
       ) : (
-        <div className="mx-auto max-w-3xl">
-          <ReceiveForm searchAction={searchAction} />
+        <div className="mx-auto max-w-5xl">
+          <ReceiveForm searchAction={searchAction} currency={org.currency} />
         </div>
       )}
     </div>

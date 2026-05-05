@@ -16,6 +16,7 @@ export async function listCustomers(
       ilike(schema.customers.name, `%${search}%`),
       ilike(schema.customers.storeCode, `%${search}%`),
       ilike(schema.customers.email, `%${search}%`),
+      ilike(schema.customers.phone, `%${search}%`),
     );
     if (w) conditions.push(w);
   }
@@ -31,6 +32,35 @@ export async function listCustomers(
     .groupBy(schema.orders.customerId)
     .as("open_orders");
 
+  const orderStats = db
+    .select({
+      customerId: schema.orders.customerId,
+      totalOrders: count().as("total_orders"),
+      totalSpent: sql<string>`coalesce(sum(${schema.orders.total}), 0)::text`.as("total_spent"),
+      lastOrderAt: sql<Date | null>`max(${schema.orders.createdAt})`.as("last_order_at"),
+    })
+    .from(schema.orders)
+    .where(eq(schema.orders.orgId, orgId))
+    .groupBy(schema.orders.customerId)
+    .as("order_stats");
+
+  const accountBalances = db
+    .select({
+      customerId: schema.invoices.customerId,
+      balance: sql<string>`coalesce(sum(${schema.invoices.total} - ${schema.invoices.amountPaid}), 0)::text`.as(
+        "balance",
+      ),
+    })
+    .from(schema.invoices)
+    .where(
+      and(
+        eq(schema.invoices.orgId, orgId),
+        sql`${schema.invoices.status} not in ('paid', 'void', 'draft')`,
+      ),
+    )
+    .groupBy(schema.invoices.customerId)
+    .as("account_balances");
+
   return db
     .select({
       id: schema.customers.id,
@@ -38,12 +68,22 @@ export async function listCustomers(
       storeCode: schema.customers.storeCode,
       email: schema.customers.email,
       phone: schema.customers.phone,
+      billingAddress: schema.customers.billingAddress,
+      shippingAddress: schema.customers.shippingAddress,
+      taxId: schema.customers.taxId,
       paymentTerms: schema.customers.paymentTerms,
+      notes: schema.customers.notes,
       isActive: schema.customers.isActive,
       openOrders: sql<number>`coalesce(${openOrders.total}, 0)::int`,
+      totalOrders: sql<number>`coalesce(${orderStats.totalOrders}, 0)::int`,
+      totalSpent: sql<string>`coalesce(${orderStats.totalSpent}, '0')`,
+      lastOrderAt: orderStats.lastOrderAt,
+      accountBalance: sql<string>`coalesce(${accountBalances.balance}, '0')`,
     })
     .from(schema.customers)
     .leftJoin(openOrders, eq(openOrders.customerId, schema.customers.id))
+    .leftJoin(orderStats, eq(orderStats.customerId, schema.customers.id))
+    .leftJoin(accountBalances, eq(accountBalances.customerId, schema.customers.id))
     .where(and(...conditions))
     .orderBy(desc(schema.customers.createdAt))
     .limit(limit);

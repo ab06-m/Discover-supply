@@ -29,6 +29,16 @@ import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+function sourceLabel(source: string) {
+  if (source === "catalog_order" || source === "Catalog order") return "Catalog order";
+
+  return source
+    .split(/[-_\s]+/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export default async function OrderDetailPage({
   params,
 }: {
@@ -135,8 +145,8 @@ export default async function OrderDetailPage({
 
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span>{new Date(order.createdAt).toLocaleDateString()}</span>
-        <Badge variant="outline" className="uppercase">
-          {order.source}
+        <Badge variant={order.source === "catalog_order" ? "secondary" : "outline"}>
+          {sourceLabel(order.source)}
         </Badge>
       </div>
 

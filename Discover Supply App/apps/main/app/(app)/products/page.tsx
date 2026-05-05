@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { AlertTriangle, FolderTree, Package, PackagePlus, Plus } from "lucide-react";
+import { FolderTree, Package, PackagePlus, Plus } from "lucide-react";
 import { ManageCategoriesDialog } from "@/modules/inventory/components/manage-categories-dialog";
 import { requireActiveOrg } from "@/lib/auth";
 import {
@@ -8,28 +8,14 @@ import {
   getProductInventorySummary,
   listProducts,
 } from "@/modules/inventory/queries";
-import {
-  getInventorySettings,
-  getStockStatus,
-  resolveLowStockThreshold,
-} from "@/modules/inventory/lib/stock-rules";
-import { formatStockDisplay } from "@/modules/inventory/lib/format-stock";
+import { getInventorySettings } from "@/modules/inventory/lib/stock-rules";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { PageHeader } from "@/components/app/page-header";
 import { PaginationControls } from "@/components/app/pagination-controls";
 import { ProductSearchInput } from "@/components/app/product-search-input";
 import { EmptyState } from "@/components/app/empty-state";
 import { InventorySummaryPanel } from "@/components/app/inventory-summary-panel";
+import { ProductsList } from "@/modules/inventory/components/products-list";
 import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -77,12 +63,12 @@ export default async function ProductsPage({
               }
             />
             <Button asChild variant="outline">
-              <Link href="/check-in">
+              <Link href="/check-in?tab=existing">
                 <PackagePlus className="mr-2 h-4 w-4" /> Check in stock
               </Link>
             </Button>
             <Button asChild>
-              <Link href="/products/new">
+              <Link href="/check-in">
                 <Plus className="mr-2 h-4 w-4" /> New item
               </Link>
             </Button>
@@ -93,28 +79,48 @@ export default async function ProductsPage({
       <InventorySummaryPanel
         items={[
           {
+            id: "totalInStock",
             label: "Total in stock",
             value: formatMoney(inventorySummary.totalInStock, org.currency),
           },
           {
+            id: "costOfStock",
             label: "Cost of stock",
             value: formatMoney(inventorySummary.costOfStock, org.currency),
           },
           {
+            id: "projectedProfit",
             label: "Projected profit",
             value: formatMoney(inventorySummary.projectedProfit, org.currency),
           },
           {
+            id: "stockSoldLast30",
+            label: "Stock sold",
+            value: numberFormatter.format(inventorySummary.stockSoldLast30),
+          },
+          {
+            id: "last30Winner",
+            label: "Last 30 days winner",
+            value: inventorySummary.last30WinnerName
+              ? `${inventorySummary.last30WinnerName} (${numberFormatter.format(
+                  inventorySummary.last30WinnerSold,
+                )})`
+              : "-",
+          },
+          {
+            id: "lowInStock",
             label: "Low in stock",
             value: numberFormatter.format(inventorySummary.lowInStock),
             tone: "warning",
           },
           {
+            id: "outOfStock",
             label: "Out of stock",
             value: numberFormatter.format(inventorySummary.outOfStock),
             tone: "destructive",
           },
           {
+            id: "inStock",
             label: "In stock",
             value: numberFormatter.format(inventorySummary.inStock),
           },
@@ -149,107 +155,11 @@ export default async function ProductsPage({
           }
         />
       ) : (
-        <Card className="overflow-x-auto shadow-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Available</TableHead>
-                <TableHead className="text-right">On hand</TableHead>
-                <TableHead className="text-right">Committed</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.map((p) => {
-                const effectiveLowStockThreshold = resolveLowStockThreshold(
-                  p.lowStockThreshold,
-                  defaultLowStockThreshold,
-                );
-                const stockStatus = p.trackStock
-                  ? getStockStatus(Number(p.available), effectiveLowStockThreshold)
-                  : null;
-                return (
-                  <TableRow key={p.id}>
-                    <TableCell>
-                      <Link href={`/products/${p.id}`} className="font-medium hover:underline">
-                        {p.name}
-                      </Link>
-                      {(p.packSize ?? 1) > 1 && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          · case of {p.packSize}
-                        </span>
-                      )}
-                      {p.barcode && (
-                        <div className="text-xs text-muted-foreground">#{p.barcode}</div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{p.sku ?? "-"}</TableCell>
-                    <TableCell className="text-right">
-                      {formatMoney(p.price, org.currency)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="inline-flex items-center justify-end gap-1">
-                        {p.trackStock ? (
-                          <>
-                            {stockStatus === "good" ? (
-                              <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                            ) : (
-                              <AlertTriangle
-                                className={`h-3.5 w-3.5 ${
-                                  stockStatus === "out" ? "text-destructive" : "text-warning"
-                                }`}
-                              />
-                            )}
-                            <span
-                              className={
-                                stockStatus === "out"
-                                  ? "text-destructive"
-                                  : stockStatus === "low"
-                                    ? "text-warning"
-                                    : ""
-                              }
-                            >
-                              {p.available}
-                            </span>
-                          </>
-                        ) : (
-                          "-"
-                        )}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {p.trackStock ? (
-                        <div
-                          className="flex flex-col items-end leading-tight"
-                          title={formatStockDisplay(p.onHand, p.packSize, p.unit ?? "each")}
-                        >
-                          <span>{p.onHand}</span>
-                          {(p.packSize ?? 1) > 1 && (
-                            <span className="text-[10px]">
-                              ≈ {Math.floor(p.onHand / (p.packSize || 1))} case
-                              {Math.floor(p.onHand / (p.packSize || 1)) === 1 ? "" : "s"}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {p.trackStock ? p.committed : "-"}
-                    </TableCell>
-                    <TableCell>
-                      {!p.isActive && <Badge variant="secondary">inactive</Badge>}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Card>
+        <ProductsList
+          rows={products}
+          currency={org.currency}
+          defaultLowStockThreshold={defaultLowStockThreshold}
+        />
       )}
 
       <Suspense>

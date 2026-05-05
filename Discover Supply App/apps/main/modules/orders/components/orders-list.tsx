@@ -116,6 +116,10 @@ function formatWords(value: string | null) {
     .join(" ");
 }
 
+function isCatalogOrder(source: string | null) {
+  return source === "catalog_order" || source === "Catalog order";
+}
+
 function paymentStatus(order: OrdersListRow) {
   const paid = moneyValue(order.amountPaid);
   const total = moneyValue(order.total);
@@ -188,9 +192,12 @@ export function OrdersList({ rows, currency }: { rows: OrdersListRow[]; currency
         id: "number",
         label: "Order",
         render: (order) => (
-          <Link href={`/orders/${order.id}`} className="font-medium hover:underline">
-            {order.number}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href={`/orders/${order.id}`} className="font-medium hover:underline">
+              {order.number}
+            </Link>
+            {isCatalogOrder(order.source) ? <Badge variant="secondary">Catalog order</Badge> : null}
+          </div>
         ),
       },
       {

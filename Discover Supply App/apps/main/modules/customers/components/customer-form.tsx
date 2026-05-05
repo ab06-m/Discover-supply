@@ -91,8 +91,13 @@ export function CustomerForm({ mode, initial }: Props) {
               <Input id="email" name="email" type="email" defaultValue={initial?.email ?? ""} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" name="phone" defaultValue={initial?.phone ?? ""} />
+              <Label htmlFor="phone">Cellphone / WhatsApp</Label>
+              <Input
+                id="phone"
+                name="phone"
+                defaultValue={initial?.phone ?? ""}
+                placeholder="+1 555 123 4567"
+              />
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="taxId">Tax ID / VAT</Label>

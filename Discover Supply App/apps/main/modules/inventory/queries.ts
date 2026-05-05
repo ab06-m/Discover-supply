@@ -1,5 +1,30 @@
 import { db, schema } from "@/lib/db";
-import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, or, sql } from "drizzle-orm";
+
+export type ProductListRow = {
+  id: string;
+  name: string;
+  kind: string;
+  brand: string | null;
+  vendor: string | null;
+  sku: string | null;
+  barcode: string | null;
+  unit: string;
+  packSize: number;
+  price: string;
+  cost: string;
+  onHand: number;
+  committed: number;
+  available: number;
+  soldLast30: number;
+  lowStockThreshold: number | null;
+  trackStock: boolean;
+  isActive: boolean;
+  imageUrl: string | null;
+  imageGallery: string[];
+  returnable: boolean;
+  showInOnlineStore: boolean;
+};
 
 export async function countProducts(orgId: string, search?: string) {
   const where = search
@@ -22,6 +47,8 @@ export async function listProducts(
   opts: { search?: string; limit?: number; offset?: number } = {},
 ) {
   const { search, limit = 50, offset = 0 } = opts;
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const where = search
     ? and(
         eq(schema.products.orgId, orgId),
@@ -33,7 +60,7 @@ export async function listProducts(
       )
     : eq(schema.products.orgId, orgId);
 
-  return db
+  const products = await db
     .select({
       id: schema.products.id,
       name: schema.products.name,
@@ -62,6 +89,34 @@ export async function listProducts(
     .orderBy(desc(schema.products.createdAt))
     .limit(limit)
     .offset(offset);
+
+  const productIds = products.map((product) => product.id);
+  if (!productIds.length) return [] satisfies ProductListRow[];
+
+  const performanceRows = await db
+    .select({
+      productId: schema.stockMovements.productId,
+      soldLast30: sql<number>`coalesce(sum(abs(${schema.stockMovements.onHandDelta})), 0)::int`,
+    })
+    .from(schema.stockMovements)
+    .where(
+      and(
+        eq(schema.stockMovements.orgId, orgId),
+        eq(schema.stockMovements.kind, "consume"),
+        gte(schema.stockMovements.createdAt, thirtyDaysAgo),
+        inArray(schema.stockMovements.productId, productIds),
+      ),
+    )
+    .groupBy(schema.stockMovements.productId);
+
+  const soldByProductId = new Map(
+    performanceRows.map((row) => [row.productId, row.soldLast30]),
+  );
+
+  return products.map((product) => ({
+    ...product,
+    soldLast30: soldByProductId.get(product.id) ?? 0,
+  })) satisfies ProductListRow[];
 }
 
 export async function getProductInventorySummary(
@@ -71,18 +126,52 @@ export async function getProductInventorySummary(
   const available = sql`greatest(${schema.products.onHand} - ${schema.products.committed}, 0)`;
   const rawAvailable = sql`${schema.products.onHand} - ${schema.products.committed}`;
   const lowStockThreshold = sql`coalesce(${schema.products.lowStockThreshold}, ${defaultLowStockThreshold})`;
+  const soldQuantity = sql<number>`coalesce(sum(abs(${schema.stockMovements.onHandDelta})), 0)::int`;
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const [row] = await db
-    .select({
-      totalInStock: sql<string>`coalesce(sum(case when ${schema.products.trackStock} then ${available} * ${schema.products.price} else 0 end), 0)`,
-      costOfStock: sql<string>`coalesce(sum(case when ${schema.products.trackStock} then ${available} * ${schema.products.cost} else 0 end), 0)`,
-      projectedProfit: sql<string>`coalesce(sum(case when ${schema.products.trackStock} then ${available} * (${schema.products.price} - ${schema.products.cost}) else 0 end), 0)`,
-      lowInStock: sql<number>`coalesce(sum(case when ${schema.products.trackStock} and ${rawAvailable} > 0 and ${rawAvailable} <= ${lowStockThreshold} then 1 else 0 end), 0)::int`,
-      outOfStock: sql<number>`coalesce(sum(case when ${schema.products.trackStock} and ${rawAvailable} <= 0 then 1 else 0 end), 0)::int`,
-      inStock: sql<number>`coalesce(sum(case when ${schema.products.trackStock} then ${available} else 0 end), 0)::int`,
-    })
-    .from(schema.products)
-    .where(eq(schema.products.orgId, orgId));
+  const [[row], [soldRow], [winnerRow]] = await Promise.all([
+    db
+      .select({
+        totalInStock: sql<string>`coalesce(sum(case when ${schema.products.trackStock} then ${available} * ${schema.products.price} else 0 end), 0)`,
+        costOfStock: sql<string>`coalesce(sum(case when ${schema.products.trackStock} then ${available} * ${schema.products.cost} else 0 end), 0)`,
+        projectedProfit: sql<string>`coalesce(sum(case when ${schema.products.trackStock} then ${available} * (${schema.products.price} - ${schema.products.cost}) else 0 end), 0)`,
+        lowInStock: sql<number>`coalesce(sum(case when ${schema.products.trackStock} and ${rawAvailable} > 0 and ${rawAvailable} <= ${lowStockThreshold} then 1 else 0 end), 0)::int`,
+        outOfStock: sql<number>`coalesce(sum(case when ${schema.products.trackStock} and ${rawAvailable} <= 0 then 1 else 0 end), 0)::int`,
+        inStock: sql<number>`coalesce(sum(case when ${schema.products.trackStock} then ${available} else 0 end), 0)::int`,
+      })
+      .from(schema.products)
+      .where(eq(schema.products.orgId, orgId)),
+    db
+      .select({
+        stockSoldLast30: soldQuantity,
+      })
+      .from(schema.stockMovements)
+      .where(
+        and(
+          eq(schema.stockMovements.orgId, orgId),
+          eq(schema.stockMovements.kind, "consume"),
+          gte(schema.stockMovements.createdAt, thirtyDaysAgo),
+        ),
+      ),
+    db
+      .select({
+        productName: schema.products.name,
+        stockSoldLast30: soldQuantity,
+      })
+      .from(schema.stockMovements)
+      .innerJoin(schema.products, eq(schema.products.id, schema.stockMovements.productId))
+      .where(
+        and(
+          eq(schema.stockMovements.orgId, orgId),
+          eq(schema.stockMovements.kind, "consume"),
+          gte(schema.stockMovements.createdAt, thirtyDaysAgo),
+        ),
+      )
+      .groupBy(schema.products.id, schema.products.name)
+      .orderBy(desc(soldQuantity))
+      .limit(1),
+  ]);
 
   return {
     totalInStock: row?.totalInStock ?? "0",
@@ -91,6 +180,9 @@ export async function getProductInventorySummary(
     lowInStock: row?.lowInStock ?? 0,
     outOfStock: row?.outOfStock ?? 0,
     inStock: row?.inStock ?? 0,
+    stockSoldLast30: soldRow?.stockSoldLast30 ?? 0,
+    last30WinnerName: winnerRow?.productName ?? null,
+    last30WinnerSold: winnerRow?.stockSoldLast30 ?? 0,
   };
 }
 

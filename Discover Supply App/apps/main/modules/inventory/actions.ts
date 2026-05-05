@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireActiveOrg } from "@/lib/auth";
 import { assertCan } from "@/lib/permissions";
@@ -351,6 +351,7 @@ const receiveItemSchema = z.object({
   unitOfMeasure: z.enum(["each", "box"]).default("each"),
   packSize: z.coerce.number().int().min(1).default(1),
   unitCost: z.coerce.number().min(0).optional(),
+  currentPrice: z.coerce.number().min(0).optional(),
 });
 
 const receiveBatchSchema = z.object({
@@ -364,6 +365,7 @@ export async function receiveStock(input: z.input<typeof receiveBatchSchema>) {
   const { org, user, role } = await requireActiveOrg();
   assertCan(role as Role, "stock.receive");
   const parsed = receiveBatchSchema.parse(input);
+  const productIds = Array.from(new Set(parsed.items.map((item) => item.productId)));
 
   const number = await generateDocNumber({
     table: schema.receipts,
@@ -371,49 +373,77 @@ export async function receiveStock(input: z.input<typeof receiveBatchSchema>) {
     prefix: "RCV",
   });
 
-  const [receipt] = await db
-    .insert(schema.receipts)
-    .values({
-      orgId: org.id,
-      number,
-      supplierName: parsed.supplierName || null,
-      supplierRef: parsed.supplierRef || null,
-      notes: parsed.notes || null,
-      createdBy: user.id,
-    })
-    .returning({ id: schema.receipts.id, number: schema.receipts.number });
-
-  for (const item of parsed.items) {
-    const packSize = item.unitOfMeasure === "box" ? item.packSize : 1;
-    const baseQty = item.quantity * packSize;
-
-    await db.insert(schema.stockMovements).values({
-      orgId: org.id,
-      productId: item.productId,
-      kind: "receive",
-      onHandDelta: baseQty,
-      committedDelta: 0,
-      quantityInput: item.quantity,
-      unitOfMeasure: item.unitOfMeasure,
-      packSize,
-      referenceType: "receipt",
-      referenceId: receipt.id,
-      unitCost: item.unitCost != null ? String(item.unitCost) : null,
-      createdBy: user.id,
-    });
-
-    await db
-      .update(schema.products)
-      .set({
-        onHand: sql`${schema.products.onHand} + ${baseQty}`,
-        ...(item.unitCost != null ? { cost: String(item.unitCost) } : {}),
-        updatedAt: new Date(),
+  const receipt = await db.transaction(async (tx) => {
+    const products = await tx
+      .select({
+        id: schema.products.id,
+        name: schema.products.name,
+        kind: schema.products.kind,
+        trackStock: schema.products.trackStock,
+        isActive: schema.products.isActive,
       })
-      .where(and(eq(schema.products.orgId, org.id), eq(schema.products.id, item.productId)));
-  }
+      .from(schema.products)
+      .where(and(eq(schema.products.orgId, org.id), inArray(schema.products.id, productIds)));
+
+    const productById = new Map(products.map((product) => [product.id, product]));
+    const missingProduct = productIds.find((id) => !productById.has(id));
+    if (missingProduct) throw new Error("One or more products could not be found.");
+
+    const notReceivable = products.find(
+      (product) => product.kind !== "goods" || !product.trackStock || !product.isActive,
+    );
+    if (notReceivable) {
+      throw new Error(`${notReceivable.name} cannot receive stock because it is inactive or not inventory-tracked.`);
+    }
+
+    const [createdReceipt] = await tx
+      .insert(schema.receipts)
+      .values({
+        orgId: org.id,
+        number,
+        supplierName: parsed.supplierName || null,
+        supplierRef: parsed.supplierRef || null,
+        notes: parsed.notes || null,
+        createdBy: user.id,
+      })
+      .returning({ id: schema.receipts.id, number: schema.receipts.number });
+
+    for (const item of parsed.items) {
+      const packSize = item.unitOfMeasure === "box" ? item.packSize : 1;
+      const baseQty = item.quantity * packSize;
+
+      await tx.insert(schema.stockMovements).values({
+        orgId: org.id,
+        productId: item.productId,
+        kind: "receive",
+        onHandDelta: baseQty,
+        committedDelta: 0,
+        quantityInput: item.quantity,
+        unitOfMeasure: item.unitOfMeasure,
+        packSize,
+        referenceType: "receipt",
+        referenceId: createdReceipt.id,
+        unitCost: item.unitCost != null ? String(item.unitCost) : null,
+        createdBy: user.id,
+      });
+
+      await tx
+        .update(schema.products)
+        .set({
+          onHand: sql`${schema.products.onHand} + ${baseQty}`,
+          ...(item.unitCost != null ? { cost: String(item.unitCost) } : {}),
+          ...(item.currentPrice != null ? { price: String(item.currentPrice) } : {}),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(schema.products.orgId, org.id), eq(schema.products.id, item.productId)));
+    }
+
+    return createdReceipt;
+  });
 
   revalidatePath("/products");
   revalidatePath("/check-in");
+  revalidatePath("/shop");
   return { id: receipt.id, number: receipt.number };
 }
 
@@ -462,8 +492,12 @@ export async function lookupByBarcode(barcode: string) {
       packSize: schema.products.packSize,
       imageUrl: schema.products.imageUrl,
       price: schema.products.price,
+      cost: schema.products.cost,
       onHand: schema.products.onHand,
       committed: schema.products.committed,
+      kind: schema.products.kind,
+      trackStock: schema.products.trackStock,
+      isActive: schema.products.isActive,
     })
     .from(schema.products)
     .where(and(eq(schema.products.orgId, org.id), eq(schema.products.barcode, barcode)))

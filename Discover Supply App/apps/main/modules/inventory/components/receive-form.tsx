@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Trash2, Plus } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatMoney } from "@/lib/utils";
 import { BarcodeScanner, BarcodeScanButton } from "./barcode-scanner";
 import { lookupByBarcode, receiveStock } from "../actions";
 
@@ -32,6 +33,9 @@ type Line = {
   // unitOfMeasure === "box"; the UI calls this a Case.
   unitOfMeasure: "each" | "box";
   packSize: number;
+  onHand: number;
+  committed: number;
+  currentPrice?: number;
   unitCost?: number;
 };
 
@@ -42,6 +46,10 @@ type SearchHit = {
   packSize?: number | null;
   unit?: ProductUnit;
   imageUrl?: string | null;
+  price: string;
+  cost: string;
+  onHand: number;
+  committed: number;
 };
 
 // Treat products whose configured unit is a multi-pack as defaulting to case
@@ -52,12 +60,18 @@ function defaultUnitFor(p: Pick<SearchHit, "unit" | "packSize">): "each" | "box"
   return "each";
 }
 
+function moneyValue(value: string | number | null | undefined) {
+  const parsed = parseFloat(String(value ?? "0"));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 type Props = {
   /** Callback to search products — provided by server component so we don't hit an API route */
   searchAction: (query: string) => Promise<SearchHit[]>;
+  currency: string;
 };
 
-export function ReceiveForm({ searchAction }: Props) {
+export function ReceiveForm({ searchAction, currency }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [lines, setLines] = useState<Line[]>([]);
@@ -89,6 +103,10 @@ export function ReceiveForm({ searchAction }: Props) {
           quantity: 1,
           unitOfMeasure: defaultUnitFor(p),
           packSize: Math.max(1, p.packSize ?? 1),
+          onHand: p.onHand,
+          committed: p.committed,
+          currentPrice: moneyValue(p.price),
+          unitCost: moneyValue(p.cost),
         },
       ];
     });
@@ -115,6 +133,10 @@ export function ReceiveForm({ searchAction }: Props) {
     setScanMessage(null);
     const product = await lookupByBarcode(code);
     if (product) {
+      if (product.kind !== "goods" || !product.trackStock || !product.isActive) {
+        setScanMessage(`${product.name} is not an active inventory-tracked item.`);
+        return;
+      }
       addLine({
         id: product.id,
         name: product.name,
@@ -122,6 +144,10 @@ export function ReceiveForm({ searchAction }: Props) {
         packSize: product.packSize,
         unit: product.unit,
         imageUrl: product.imageUrl,
+        price: product.price,
+        cost: product.cost,
+        onHand: product.onHand,
+        committed: product.committed,
       });
       setScanMessage(`Added: ${product.name}`);
     } else {
@@ -135,6 +161,11 @@ export function ReceiveForm({ searchAction }: Props) {
   }
   function updateCost(productId: string, cost: number | undefined) {
     setLines((ls) => ls.map((l) => (l.productId === productId ? { ...l, unitCost: cost } : l)));
+  }
+  function updatePrice(productId: string, price: number | undefined) {
+    setLines((ls) =>
+      ls.map((l) => (l.productId === productId ? { ...l, currentPrice: price } : l)),
+    );
   }
   function updateUnit(productId: string, uom: "each" | "box") {
     setLines((ls) =>
@@ -177,6 +208,7 @@ export function ReceiveForm({ searchAction }: Props) {
             unitOfMeasure: l.unitOfMeasure,
             packSize: l.packSize,
             unitCost: l.unitCost,
+            currentPrice: l.currentPrice,
           })),
         });
         router.push(`/products?received=${encodeURIComponent(res.number)}`);
@@ -213,6 +245,8 @@ export function ReceiveForm({ searchAction }: Props) {
                     >
                       <span className="truncate">{p.name}</span>
                       <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                        <span>{p.onHand - p.committed} available</span>
+                        <span>{formatMoney(p.price, currency)}</span>
                         {(p.packSize ?? 1) > 1 && <span>case of {p.packSize}</span>}
                         {p.sku && <span>{p.sku}</span>}
                       </span>
@@ -235,14 +269,15 @@ export function ReceiveForm({ searchAction }: Props) {
               No items yet. Search or scan a barcode to add.
             </p>
           ) : (
-            <div className="rounded-md border">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full min-w-[960px] text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left">
                     <th className="p-2">Product</th>
                     <th className="p-2 w-28">Receive as</th>
                     <th className="p-2 w-24">Units/case</th>
                     <th className="p-2 w-24">Qty</th>
+                    <th className="p-2 w-32">Sale price</th>
                     <th className="p-2 w-32">Unit cost</th>
                     <th className="p-2 w-10" />
                   </tr>
@@ -251,6 +286,9 @@ export function ReceiveForm({ searchAction }: Props) {
                   {lines.map((l) => {
                     const isBox = l.unitOfMeasure === "box";
                     const baseQty = isBox ? l.quantity * l.packSize : l.quantity;
+                    const available = l.onHand - l.committed;
+                    const afterOnHand = l.onHand + baseQty;
+                    const afterAvailable = available + baseQty;
                     return (
                       <tr key={l.productId} className="border-b align-top">
                         <td className="p-2">
@@ -268,12 +306,21 @@ export function ReceiveForm({ searchAction }: Props) {
                               {l.sku && (
                                 <div className="text-xs text-muted-foreground">{l.sku}</div>
                               )}
+                              <div className="mt-0.5 text-xs text-muted-foreground">
+                                On hand: {l.onHand.toLocaleString()} | Committed:{" "}
+                                {l.committed.toLocaleString()} | Available:{" "}
+                                {available.toLocaleString()}
+                              </div>
+                              <div className="mt-0.5 text-xs text-muted-foreground">
+                                Check in: {baseQty.toLocaleString()} units | After:{" "}
+                                {afterOnHand.toLocaleString()} on hand /{" "}
+                                {afterAvailable.toLocaleString()} available
+                              </div>
                               {isBox && (
                                 <div className="mt-0.5 text-xs text-muted-foreground">
                                   {l.quantity.toLocaleString()} case
                                   {l.quantity === 1 ? "" : "s"} x{" "}
-                                  {l.packSize.toLocaleString()} units ={" "}
-                                  {baseQty.toLocaleString()} units added
+                                  {l.packSize.toLocaleString()} units
                                 </div>
                               )}
                             </div>
@@ -317,6 +364,23 @@ export function ReceiveForm({ searchAction }: Props) {
                             type="number"
                             step="0.01"
                             min={0}
+                            value={l.currentPrice ?? ""}
+                            onChange={(e) =>
+                              updatePrice(
+                                l.productId,
+                                e.target.value === "" ? undefined : parseFloat(e.target.value),
+                              )
+                            }
+                          />
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            Current: {formatMoney(l.currentPrice ?? 0, currency)}
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={0}
                             placeholder="—"
                             value={l.unitCost ?? ""}
                             onChange={(e) =>
@@ -326,6 +390,9 @@ export function ReceiveForm({ searchAction }: Props) {
                               )
                             }
                           />
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            Stock value +{formatMoney((l.unitCost ?? 0) * baseQty, currency)}
+                          </div>
                         </td>
                         <td className="p-2">
                           <Button

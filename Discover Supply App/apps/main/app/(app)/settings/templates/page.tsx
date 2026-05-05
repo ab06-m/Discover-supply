@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { can, type Role } from "@/lib/permissions";
 import { saveInvoiceTemplate } from "@/modules/invoices/actions";
 import { saveOrderTemplate } from "@/modules/orders/actions";
+import { InvoiceTemplateManager } from "@/modules/invoices/components/invoice-template-manager";
 import { AVAILABLE_MERGE_FIELDS } from "@/modules/invoices/lib/merge-fields";
 import { AVAILABLE_ORDER_MERGE_FIELDS } from "@/modules/orders/lib/merge-fields";
 import { listTemplates } from "@/modules/invoices/queries";
@@ -25,6 +26,7 @@ import {
 import {
   ensureInvoiceTemplatePresets,
   INVOICE_TEMPLATE_LAYOUTS,
+  type InvoiceTemplateLayout,
 } from "@/modules/invoices/template-presets";
 import {
   ensureOrderTemplatePresets,
@@ -134,10 +136,13 @@ export default async function TemplatesPage({
     });
   }
 
-  const activeTemplates = type === "invoice" ? invoiceTemplates : orderTemplates;
-  const activeMergeFields =
-    type === "invoice" ? AVAILABLE_MERGE_FIELDS : AVAILABLE_ORDER_MERGE_FIELDS;
-  const activeLayouts = type === "invoice" ? INVOICE_TEMPLATE_LAYOUTS : ORDER_TEMPLATE_LAYOUTS;
+  const invoiceEditorTemplates = invoiceTemplates.map((template) => ({
+    id: template.id,
+    name: template.name,
+    layout: template.layout as InvoiceTemplateLayout,
+    isDefault: template.isDefault,
+    config: asInvoiceConfig(template.config),
+  }));
 
   return (
     <div className="space-y-6">
@@ -157,6 +162,21 @@ export default async function TemplatesPage({
         </Tab>
       </div>
 
+      {type === "invoice" ? (
+        <InvoiceTemplateManager
+          templates={invoiceEditorTemplates}
+          layouts={INVOICE_TEMPLATE_LAYOUTS}
+          mergeFields={AVAILABLE_MERGE_FIELDS}
+          companyInfo={{
+            name: org.name,
+            logoUrl: org.logoUrl,
+            currency: org.currency,
+          }}
+          canManage={canManage}
+          saveAction={saveInvoice}
+        />
+      ) : (
+        <>
       <Card>
         <CardHeader>
           <CardTitle>Merge fields</CardTitle>
@@ -166,7 +186,7 @@ export default async function TemplatesPage({
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {activeMergeFields.map((field) => (
+            {AVAILABLE_ORDER_MERGE_FIELDS.map((field) => (
               <span
                 key={field.key}
                 className="rounded-md border bg-muted/40 px-2 py-1 font-mono text-xs text-muted-foreground"
@@ -193,15 +213,11 @@ export default async function TemplatesPage({
           </Card>
         ) : null}
 
-        {activeTemplates.map((template) => {
-          const config =
-            type === "invoice"
-              ? asInvoiceConfig(template.config)
-              : asOrderConfig(template.config);
-          const action = type === "invoice" ? saveInvoice : saveOrder;
+        {orderTemplates.map((template) => {
+          const config = asOrderConfig(template.config);
           return (
             <Card key={template.id} className="shadow-card">
-              <form action={action}>
+              <form action={saveOrder}>
                 <input type="hidden" name="id" value={template.id} />
                 <CardHeader>
                   <div className="flex flex-wrap items-start justify-between gap-4">
@@ -250,7 +266,7 @@ export default async function TemplatesPage({
                         name="layout"
                         defaultValue={template.layout}
                       >
-                        {activeLayouts.map((l) => (
+                        {ORDER_TEMPLATE_LAYOUTS.map((l) => (
                           <option key={l.value} value={l.value}>
                             {l.label}
                           </option>
@@ -326,46 +342,13 @@ export default async function TemplatesPage({
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                    {(type === "invoice"
-                      ? ([
-                          ["showLogo", "Show logo", config.showLogo],
-                          [
-                            "showTaxBreakdown",
-                            "Show tax",
-                            (config as InvoiceTemplateConfig).showTaxBreakdown,
-                          ],
-                          [
-                            "showPaymentInstructions",
-                            "Payment info",
-                            (config as InvoiceTemplateConfig).showPaymentInstructions,
-                          ],
-                          [
-                            "showDueDate",
-                            "Due date",
-                            (config as InvoiceTemplateConfig).showDueDate,
-                          ],
-                          ["showOrderNumber", "Order #", config.showOrderNumber],
-                        ] as const)
-                      : ([
-                          ["showLogo", "Show logo", config.showLogo],
-                          [
-                            "showTaxBreakdown",
-                            "Show tax",
-                            (config as OrderTemplateConfig).showTaxBreakdown,
-                          ],
-                          ["showOrderNumber", "Order #", config.showOrderNumber],
-                          [
-                            "showCustomerAddress",
-                            "Customer address",
-                            (config as OrderTemplateConfig).showCustomerAddress,
-                          ],
-                          [
-                            "showSignatureBlock",
-                            "Signature line",
-                            (config as OrderTemplateConfig).showSignatureBlock,
-                          ],
-                        ] as const)
-                    ).map(([name, label, checked]) => (
+                    {([
+                      ["showLogo", "Show logo", config.showLogo],
+                      ["showTaxBreakdown", "Show tax", config.showTaxBreakdown],
+                      ["showOrderNumber", "Order #", config.showOrderNumber],
+                      ["showCustomerAddress", "Customer address", config.showCustomerAddress],
+                      ["showSignatureBlock", "Signature line", config.showSignatureBlock],
+                    ] as const).map(([name, label, checked]) => (
                       <label
                         key={String(name)}
                         className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm"
@@ -400,16 +383,6 @@ export default async function TemplatesPage({
                       label="Terms"
                       defaultValue={config.termsText ?? ""}
                     />
-                    {type === "invoice" ? (
-                      <TextField
-                        id={`payment-${template.id}`}
-                        name="paymentInstructions"
-                        label="Payment instructions"
-                        defaultValue={
-                          (config as InvoiceTemplateConfig).paymentInstructions ?? ""
-                        }
-                      />
-                    ) : null}
                   </div>
 
                   <div className="flex justify-end">
@@ -423,6 +396,8 @@ export default async function TemplatesPage({
           );
         })}
       </div>
+        </>
+      )}
     </div>
   );
 }

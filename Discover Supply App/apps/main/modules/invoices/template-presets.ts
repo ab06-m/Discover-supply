@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import type { InvoiceTemplateConfig } from "./schema";
 
-export type InvoiceTemplateLayout = "clean" | "bold" | "classic" | "receipt";
+export type InvoiceTemplateLayout = "clean" | "bold" | "minimal" | "classic" | "receipt";
 
 export type InvoiceTemplatePreset = {
   key: string;
@@ -19,6 +19,7 @@ export const INVOICE_TEMPLATE_LAYOUTS: Array<{
 }> = [
   { value: "clean", label: "Modern" },
   { value: "bold", label: "Bold" },
+  { value: "minimal", label: "Minimal" },
   { value: "classic", label: "Classic" },
   { value: "receipt", label: "Receipt" },
 ];

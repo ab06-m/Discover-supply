@@ -48,6 +48,7 @@ type OrgSnap = {
 export type InvoiceRenderProps = {
   layout?: "clean" | "bold" | "minimal" | "classic" | "receipt";
   config?: Partial<InvoiceTemplateConfig>;
+  previewMode?: boolean;
   org: OrgSnap;
   customer: CustomerSnap;
   invoice: {
@@ -115,7 +116,13 @@ export function InvoiceRender(props: InvoiceRenderProps) {
   if (isReceipt) {
     return (
       <InvoiceShell fontClass={fontClass} compact>
-        <ReceiptHeader org={org} invoice={invoice} config={config} brand={brand} />
+        <ReceiptHeader
+          org={org}
+          invoice={invoice}
+          config={config}
+          brand={brand}
+          previewMode={props.previewMode}
+        />
         <div className="px-6 py-5">
           <ReceiptMeta customer={customer} invoice={invoice} config={config} accent={accent} />
           <ItemsTable items={items} org={org} layout={layout} brand={brand} />
@@ -144,7 +151,14 @@ export function InvoiceRender(props: InvoiceRenderProps) {
   return (
     <InvoiceShell fontClass={fontClass}>
       {isBold ? (
-        <BoldHeader org={org} invoice={invoice} config={config} brand={brand} accent={accent} />
+        <BoldHeader
+          org={org}
+          invoice={invoice}
+          config={config}
+          brand={brand}
+          accent={accent}
+          previewMode={props.previewMode}
+        />
       ) : (
         <StandardHeader
           org={org}
@@ -154,6 +168,7 @@ export function InvoiceRender(props: InvoiceRenderProps) {
           accent={accent}
           isClassic={isClassic}
           isModern={isModern}
+          previewMode={props.previewMode}
         />
       )}
 
@@ -236,6 +251,7 @@ function StandardHeader({
   accent,
   isClassic,
   isModern,
+  previewMode,
 }: {
   org: OrgSnap;
   invoice: InvoiceRenderProps["invoice"];
@@ -244,6 +260,7 @@ function StandardHeader({
   accent: string;
   isClassic: boolean;
   isModern: boolean;
+  previewMode?: boolean;
 }) {
   return (
     <div
@@ -257,9 +274,12 @@ function StandardHeader({
     >
       <div className="flex items-start justify-between gap-6">
         <div>
-          {config.showLogo && config.logoUrl && (
-            <img src={config.logoUrl} alt="" className="mb-3 h-12 object-contain" />
-          )}
+          <LogoDisplay
+            logoUrl={config.logoUrl}
+            showLogo={config.showLogo}
+            previewMode={previewMode}
+            className="mb-3"
+          />
           <div
             className={`${isClassic ? "text-2xl font-semibold" : "text-xl font-bold"}`}
             style={{ color: brand }}
@@ -289,20 +309,26 @@ function BoldHeader({
   config,
   brand,
   accent,
+  previewMode,
 }: {
   org: OrgSnap;
   invoice: InvoiceRenderProps["invoice"];
   config: InvoiceTemplateConfig;
   brand: string;
   accent: string;
+  previewMode?: boolean;
 }) {
   return (
     <div className="px-8 py-10 text-white" style={{ backgroundColor: brand }}>
       <div className="flex items-start justify-between gap-6">
         <div>
-          {config.showLogo && config.logoUrl && (
-            <img src={config.logoUrl} alt="" className="mb-3 h-12 object-contain" />
-          )}
+          <LogoDisplay
+            logoUrl={config.logoUrl}
+            showLogo={config.showLogo}
+            previewMode={previewMode}
+            className="mb-3"
+            inverse
+          />
           <div className="text-2xl font-bold">{org.name}</div>
           <AddressBlock addr={org.address} className="mt-2 text-sm leading-5 text-white/75" />
         </div>
@@ -326,17 +352,23 @@ function ReceiptHeader({
   invoice,
   config,
   brand,
+  previewMode,
 }: {
   org: OrgSnap;
   invoice: InvoiceRenderProps["invoice"];
   config: InvoiceTemplateConfig;
   brand: string;
+  previewMode?: boolean;
 }) {
   return (
     <div className="border-b-2 border-dashed border-slate-300 px-6 py-6 text-center">
-      {config.showLogo && config.logoUrl && (
-        <img src={config.logoUrl} alt="" className="mx-auto mb-3 h-10 object-contain" />
-      )}
+      <LogoDisplay
+        logoUrl={config.logoUrl}
+        showLogo={config.showLogo}
+        previewMode={previewMode}
+        className="mx-auto mb-3"
+        compact
+      />
       <div className="text-lg font-bold" style={{ color: brand }}>
         {org.name}
       </div>
@@ -344,6 +376,44 @@ function ReceiptHeader({
       <div className="mt-4 text-xs font-semibold uppercase text-slate-500">
         Receipt / {invoice.number}
       </div>
+    </div>
+  );
+}
+
+function LogoDisplay({
+  logoUrl,
+  showLogo,
+  previewMode,
+  className,
+  inverse = false,
+  compact = false,
+}: {
+  logoUrl?: string;
+  showLogo: boolean;
+  previewMode?: boolean;
+  className?: string;
+  inverse?: boolean;
+  compact?: boolean;
+}) {
+  if (!showLogo) return null;
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt=""
+        className={`${compact ? "h-10" : "h-12"} object-contain ${className ?? ""}`}
+      />
+    );
+  }
+  if (!previewMode) return null;
+
+  return (
+    <div
+      className={`inline-flex ${compact ? "h-10 w-24" : "h-12 w-32"} items-center justify-center rounded-md border border-dashed text-[10px] font-semibold uppercase ${
+        inverse ? "border-white/45 text-white/70" : "border-slate-300 bg-white/70 text-slate-400"
+      } ${className ?? ""}`}
+    >
+      Logo
     </div>
   );
 }

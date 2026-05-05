@@ -1,14 +1,13 @@
 import Link from "next/link";
-import { Plus, Store } from "lucide-react";
+import { Plus, Search, Store } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
 import { listCustomers } from "@/modules/customers/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/app/page-header";
 import { EmptyState } from "@/components/app/empty-state";
+import { CustomersList } from "@/modules/customers/components/customers-list";
 
 export const dynamic = "force-dynamic";
 
@@ -29,15 +28,36 @@ export default async function CustomersPage({
         actions={
           <Button asChild>
             <Link href="/customers/new">
-              <Plus className="mr-2 h-4 w-4" /> Add customer
+              <Plus className="mr-2 h-4 w-4" /> Customer
             </Link>
           </Button>
         }
       />
 
-      <form className="max-w-sm">
-        <Input name="q" placeholder="Search name, code, or email..." defaultValue={q ?? ""} />
-      </form>
+      <Card className="p-4 shadow-card">
+        <form className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-md">
+            <Input
+              name="q"
+              placeholder="Search by name"
+              defaultValue={q ?? ""}
+              className="h-12 pr-11"
+            />
+            <button
+              type="submit"
+              className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+              aria-label="Search customers"
+            >
+              <Search className="h-5 w-5" />
+            </button>
+          </div>
+          <Button asChild className="h-12 sm:px-6">
+            <Link href="/customers/new">
+              <Plus className="mr-2 h-4 w-4" /> Customer
+            </Link>
+          </Button>
+        </form>
+      </Card>
 
       {rows.length === 0 ? (
         <EmptyState
@@ -57,41 +77,7 @@ export default async function CustomersPage({
           }
         />
       ) : (
-        <Card className="overflow-hidden shadow-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Customer</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Terms</TableHead>
-                <TableHead className="text-right">Open orders</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell>
-                    <Link href={`/customers/${c.id}`} className="font-medium hover:underline">
-                      {c.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{c.storeCode ?? "-"}</TableCell>
-                  <TableCell>
-                    <div className="text-sm">{c.email ?? "-"}</div>
-                    <div className="text-xs text-muted-foreground">{c.phone ?? ""}</div>
-                  </TableCell>
-                  <TableCell className="text-xs uppercase text-muted-foreground">
-                    {c.paymentTerms}
-                  </TableCell>
-                  <TableCell className="text-right">{c.openOrders}</TableCell>
-                  <TableCell>{!c.isActive && <Badge variant="secondary">inactive</Badge>}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+        <CustomersList rows={rows} currency={org.currency} />
       )}
     </div>
   );
