@@ -1984,6 +1984,14 @@ body:has(.buyer-mockup-page) .navbar {
   font-weight: 900;
 }
 
+.buyer-panel-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  text-align: center;
+}
+
 .buyer-primary-action:disabled {
   cursor: not-allowed;
   opacity: 0.65;

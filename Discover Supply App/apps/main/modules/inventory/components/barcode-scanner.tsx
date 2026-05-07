@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Zap, RotateCcw } from "lucide-react";
+import { Barcode, X, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Props = {
@@ -137,7 +137,7 @@ export function BarcodeScanButton({ onClick }: { onClick: () => void }) {
       aria-label="Scan barcode"
       title="Scan barcode"
     >
-      <Zap className="h-4 w-4" />
+      <Barcode className="h-4 w-4" />
     </Button>
   );
 }

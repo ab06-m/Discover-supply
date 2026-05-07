@@ -1,55 +1,9 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-
-type DateRange = { start: Date; end: Date };
-
-function baseDateAtUtcStart(date: Date) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
-}
+import { resolveReportDateRange, type DateRange } from "./date-ranges";
 
 export function resolveDateRange(params: { preset?: string; start?: string; end?: string }): DateRange {
-  const now = new Date();
-  const today = baseDateAtUtcStart(now);
-
-  if (params.preset === "custom" && params.start && params.end) {
-    return {
-      start: new Date(`${params.start}T00:00:00.000Z`),
-      end: new Date(`${params.end}T23:59:59.999Z`),
-    };
-  }
-
-  if (params.preset === "last_week") {
-    const end = new Date(today);
-    end.setUTCDate(end.getUTCDate() - 1);
-    const start = new Date(end);
-    start.setUTCDate(start.getUTCDate() - 6);
-    return { start, end: new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate(), 23, 59, 59, 999)) };
-  }
-
-  if (params.preset === "last_month") {
-    const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
-    const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0, 23, 59, 59, 999));
-    return { start, end };
-  }
-
-  if (params.preset === "mtd") {
-    return {
-      start: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)),
-      end: new Date(),
-    };
-  }
-
-  const preset = params.preset ?? "ytd";
-  if (preset === "last_30_days") {
-    const start = new Date(today);
-    start.setUTCDate(start.getUTCDate() - 29);
-    return { start, end: new Date() };
-  }
-
-  return {
-    start: new Date(Date.UTC(today.getUTCFullYear(), 0, 1)),
-    end: new Date(),
-  };
+  return resolveReportDateRange(params);
 }
 
 export async function getReportSnapshot(orgId: string, dateRange: DateRange) {

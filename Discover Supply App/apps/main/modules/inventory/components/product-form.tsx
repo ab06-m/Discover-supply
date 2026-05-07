@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BarcodeScanner, BarcodeScanButton } from "./barcode-scanner";
-import { createProduct, updateProduct } from "../actions";
+import { createProduct, updateProduct } from "../product-actions";
 import type { Product } from "../schema";
 import type { CategoryNode } from "../categories-actions";
 
@@ -89,7 +89,7 @@ export function ProductForm({ mode, initial, defaultLowStockThreshold, categorie
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form id="product-form" onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="name">Product name *</Label>
         <Input id="name" name="name" defaultValue={initial?.name ?? ""} required />
@@ -302,7 +302,7 @@ export function ProductForm({ mode, initial, defaultLowStockThreshold, categorie
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 lg:hidden">
         <Button type="submit" disabled={submitting}>
           {submitting ? "Saving…" : mode === "create" ? "Create product" : "Save changes"}
         </Button>

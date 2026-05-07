@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  ExternalLink,
   Heart,
   Home,
   LayoutGrid,
@@ -20,6 +21,11 @@ import type { ChangeEvent } from "react";
 import type { StoreProduct, StoreProductsResponse } from "@/lib/products-api";
 
 const PAGE_SIZE = 48;
+const MAIN_APP_URL = process.env.NEXT_PUBLIC_MAIN_APP_URL || "http://localhost:3000";
+
+function mainAppHref(path: string) {
+  return new URL(path, MAIN_APP_URL).toString();
+}
 
 type CartItem = {
   id: string;
@@ -124,7 +130,6 @@ export function BuyerBrowseExperience({
   const [catalogItems, setCatalogItems] = useState(items);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [activePanel, setActivePanel] = useState<Panel>(null);
-  const [signedIn, setSignedIn] = useState(false);
   const cartLoadedRef = useRef(false);
   const searchHydratedRef = useRef(false);
   const searchRequestRef = useRef(0);
@@ -161,6 +166,8 @@ export function BuyerBrowseExperience({
   );
   const matchedAddress = matchedCustomer?.shippingAddress ?? matchedCustomer?.billingAddress ?? null;
   const matchedAddressLines = addressLines(matchedAddress);
+  const portalLoginHref = mainAppHref("/portal/login?next=/portal");
+  const portalShopHref = mainAppHref("/shop");
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -556,7 +563,7 @@ export function BuyerBrowseExperience({
             onClick={() => setActivePanel("profile")}
           >
             <User size={17} />
-            <span>{signedIn ? "Profile" : "Sign in"}</span>
+            <span>Portal</span>
           </button>
           <button
             type="button"
@@ -675,7 +682,7 @@ export function BuyerBrowseExperience({
                   <div className="buyer-product-copy">
                     <div className="buyer-product-stock">
                       <span className={inStock ? "is-in" : "is-out"}>
-                        {inStock ? "In stock" : "Out"}
+                        {inStock ? "In stock" : "Out of stock"}
                       </span>
                       {item.sku ? <span>{item.sku}</span> : null}
                     </div>
@@ -722,7 +729,7 @@ export function BuyerBrowseExperience({
         </button>
         <button type="button" onClick={() => setActivePanel("profile")}>
           <User size={18} />
-          <span>{signedIn ? "Profile" : "Sign in"}</span>
+          <span>Portal</span>
         </button>
       </nav>
 
@@ -732,7 +739,7 @@ export function BuyerBrowseExperience({
             <div className="buyer-panel-header">
               <div>
                 <span>{activePanel === "cart" ? "Your order" : "Customer access"}</span>
-                <h2>{activePanel === "cart" ? "Cart" : signedIn ? "Profile" : "Sign in"}</h2>
+                <h2>{activePanel === "cart" ? "Cart" : "Customer portal"}</h2>
               </div>
               <button type="button" aria-label="Close panel" onClick={() => setActivePanel(null)}>
                 <X size={18} />
@@ -745,6 +752,11 @@ export function BuyerBrowseExperience({
                   <div className="buyer-panel-empty">
                     <ShoppingCart size={28} />
                     <p>{checkoutStatus === "success" ? checkoutMessage : "Your cart is ready when you are."}</p>
+                    {checkoutStatus === "success" ? (
+                      <a className="buyer-secondary-action buyer-panel-link" href={portalLoginHref}>
+                        Open customer portal <ExternalLink size={15} />
+                      </a>
+                    ) : null}
                   </div>
                 ) : (
                   <>
@@ -916,32 +928,16 @@ export function BuyerBrowseExperience({
               </div>
             ) : (
               <div className="buyer-profile-panel">
-                {signedIn ? (
-                  <>
-                    <div className="buyer-profile-card">
-                      <div className="buyer-avatar">DS</div>
-                      <div>
-                        <strong>Discover Buyer</strong>
-                        <span>buyer@example.com</span>
-                      </div>
-                    </div>
-                    <button type="button">Orders</button>
-                    <button type="button">Invoices</button>
-                    <button type="button">Addresses</button>
-                    <button type="button" onClick={() => setSignedIn(false)}>Sign out</button>
-                  </>
-                ) : (
-                  <>
-                    <p>Sign in to keep carts, reorder faster, and see account-specific pricing.</p>
-                    <label>
-                      Email
-                      <input type="email" placeholder="buyer@company.com" />
-                    </label>
-                    <button type="button" className="buyer-primary-action" onClick={() => setSignedIn(true)}>
-                      Send magic link
-                    </button>
-                  </>
-                )}
+                <p>
+                  Sign in to view orders, invoices, and account details. You can
+                  keep browsing here or continue in the signed-in shop.
+                </p>
+                <a className="buyer-primary-action buyer-panel-link" href={portalLoginHref}>
+                  Customer portal <ExternalLink size={15} />
+                </a>
+                <a className="buyer-secondary-action buyer-panel-link" href={portalShopHref}>
+                  Shop with account <ExternalLink size={15} />
+                </a>
               </div>
             )}
           </aside>

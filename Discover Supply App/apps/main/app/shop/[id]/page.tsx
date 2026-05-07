@@ -13,8 +13,8 @@ export default async function ShopItem({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { active } = await requireCustomer();
   const { id } = await params;
+  const { active } = await requireCustomer(`/shop/${id}`);
   const p = await getCatalogItem(active.org.id, id);
   if (!p) notFound();
 

@@ -20,7 +20,7 @@ const checkoutSchema = z.object({
 });
 
 export async function placeStorefrontOrder(input: z.input<typeof checkoutSchema>) {
-  const { user, active } = await requireCustomer();
+  const { user, active } = await requireCustomer("/shop/cart");
   const parsed = checkoutSchema.parse(input);
   const orgId = active.org.id;
 

@@ -227,9 +227,9 @@ export function ReceiveForm({ searchAction, currency }: Props) {
         <CardContent className="space-y-4">
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="pl-9"
+                className="pl-12"
                 placeholder="Search product by name or SKU…"
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
@@ -269,7 +269,149 @@ export function ReceiveForm({ searchAction, currency }: Props) {
               No items yet. Search or scan a barcode to add.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-md border">
+            <>
+              <div className="space-y-3 md:hidden">
+                {lines.map((l) => {
+                  const isBox = l.unitOfMeasure === "box";
+                  const baseQty = isBox ? l.quantity * l.packSize : l.quantity;
+                  const available = l.onHand - l.committed;
+                  const afterOnHand = l.onHand + baseQty;
+                  const afterAvailable = available + baseQty;
+                  return (
+                    <div key={l.productId} className="rounded-md border bg-background p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-2">
+                          {l.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={l.imageUrl}
+                              alt=""
+                              className="h-10 w-10 shrink-0 rounded border bg-muted object-cover"
+                            />
+                          ) : null}
+                          <div className="min-w-0">
+                            <div className="font-medium leading-snug">{l.name}</div>
+                            {l.sku && <div className="text-xs text-muted-foreground">{l.sku}</div>}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => removeLine(l.productId)}
+                          aria-label="Remove"
+                          className="shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                        <div>
+                          On hand: {l.onHand.toLocaleString()} | Committed:{" "}
+                          {l.committed.toLocaleString()} | Available: {available.toLocaleString()}
+                        </div>
+                        <div>
+                          Check in: {baseQty.toLocaleString()} units | After:{" "}
+                          {afterOnHand.toLocaleString()} on hand /{" "}
+                          {afterAvailable.toLocaleString()} available
+                        </div>
+                        {isBox && (
+                          <div>
+                            {l.quantity.toLocaleString()} case{l.quantity === 1 ? "" : "s"} x{" "}
+                            {l.packSize.toLocaleString()} units
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-4 grid gap-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>Receive as</Label>
+                            <select
+                              className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+                              value={l.unitOfMeasure}
+                              onChange={(e) =>
+                                updateUnit(l.productId, e.target.value as "each" | "box")
+                              }
+                            >
+                              <option value="each">Unit</option>
+                              <option value="box">Case</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Qty</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={l.quantity}
+                              onChange={(e) =>
+                                updateQty(l.productId, parseInt(e.target.value || "0", 10))
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        {isBox && (
+                          <div className="space-y-1.5">
+                            <Label>Units per case</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={l.packSize}
+                              onChange={(e) =>
+                                updatePackSize(l.productId, parseInt(e.target.value || "1", 10))
+                              }
+                            />
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>Sale price</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              value={l.currentPrice ?? ""}
+                              onChange={(e) =>
+                                updatePrice(
+                                  l.productId,
+                                  e.target.value === "" ? undefined : parseFloat(e.target.value),
+                                )
+                              }
+                            />
+                            <div className="text-xs text-muted-foreground">
+                              Current: {formatMoney(l.currentPrice ?? 0, currency)}
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Unit cost</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              placeholder="â€”"
+                              value={l.unitCost ?? ""}
+                              onChange={(e) =>
+                                updateCost(
+                                  l.productId,
+                                  e.target.value === "" ? undefined : parseFloat(e.target.value),
+                                )
+                              }
+                            />
+                            <div className="text-xs text-muted-foreground">
+                              +{formatMoney((l.unitCost ?? 0) * baseQty, currency)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="hidden overflow-x-auto rounded-md border md:block">
               <table className="w-full min-w-[960px] text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left">
@@ -410,7 +552,8 @@ export function ReceiveForm({ searchAction, currency }: Props) {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

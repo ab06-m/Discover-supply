@@ -10,46 +10,7 @@ import { assertCan } from "@/lib/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateDocNumber } from "./lib/generate-number";
 import type { Role } from "@/lib/permissions";
-
-const productSchema = z.object({
-  categoryId: z
-    .union([z.string().uuid(), z.literal("")])
-    .optional()
-    .transform((v) => (v ? v : null)),
-  kind: z.enum(["goods", "service"]).default("goods"),
-  name: z.string().min(1).max(200),
-  brand: z.string().max(120).optional().or(z.literal("")),
-  vendor: z.string().max(200).optional().or(z.literal("")),
-  sku: z.string().max(64).optional().or(z.literal("")),
-  barcode: z.string().max(64).optional().or(z.literal("")),
-  description: z.string().max(2000).optional().or(z.literal("")),
-  salesDescription: z.string().max(2000).optional().or(z.literal("")),
-  purchaseDescription: z.string().max(2000).optional().or(z.literal("")),
-  unit: z.enum(["each", "case", "box", "pack", "kg", "lb", "liter", "gallon"]).default("each"),
-  packSize: z.coerce.number().int().min(1).default(1),
-  price: z.coerce.number().min(0).default(0),
-  cost: z.coerce.number().min(0).default(0),
-  lowStockThreshold: z.preprocess(
-    (value) => {
-      if (value == null) return null;
-      const text = String(value).trim();
-      return text === "" ? null : text;
-    },
-    z.coerce.number().int().min(0).nullable(),
-  ),
-  trackStock: z
-    .union([z.literal("on"), z.literal("true"), z.literal("false"), z.boolean()])
-    .optional()
-    .transform((v) => v === "on" || v === "true" || v === true),
-  returnable: z
-    .union([z.literal("on"), z.literal("true"), z.literal("false"), z.boolean()])
-    .optional()
-    .transform((v) => v === "on" || v === "true" || v === true),
-  showInOnlineStore: z
-    .union([z.literal("on"), z.literal("true"), z.literal("false"), z.boolean()])
-    .optional()
-    .transform((v) => v === "on" || v === "true" || v === true),
-});
+import { productSchema } from "./product-schema";
 
 export async function createProduct(formData: FormData) {
   const { org, user, role } = await requireActiveOrg();
@@ -183,6 +144,16 @@ function getFileList(formData: FormData, name: string) {
     .filter((value): value is File => value instanceof File && value.size > 0);
 }
 
+const POSTGRES_INT_MAX = 2_147_483_647;
+
+function toBaseStockQuantity(quantity: number, packSize: number) {
+  const baseQty = quantity * packSize;
+  if (!Number.isSafeInteger(baseQty) || baseQty > POSTGRES_INT_MAX) {
+    throw new Error("Received quantity is too large to store safely.");
+  }
+  return baseQty;
+}
+
 async function uploadProductImage(orgId: string, productId: string, file: File, slot: string) {
   imageSchema.parse({ name: file.name, size: file.size, type: file.type });
 
@@ -304,7 +275,7 @@ export async function createCheckInItem(formData: FormData) {
       receiptId = receipt.id;
       const packSize =
         input.openingUnitOfMeasure === "box" ? input.openingPackSize : 1;
-      const baseQty = openingQuantity * packSize;
+      const baseQty = toBaseStockQuantity(openingQuantity, packSize);
 
       await tx.insert(schema.stockMovements).values({
         orgId: org.id,
@@ -379,6 +350,7 @@ export async function receiveStock(input: z.input<typeof receiveBatchSchema>) {
         id: schema.products.id,
         name: schema.products.name,
         kind: schema.products.kind,
+        packSize: schema.products.packSize,
         trackStock: schema.products.trackStock,
         isActive: schema.products.isActive,
       })
@@ -396,6 +368,14 @@ export async function receiveStock(input: z.input<typeof receiveBatchSchema>) {
       throw new Error(`${notReceivable.name} cannot receive stock because it is inactive or not inventory-tracked.`);
     }
 
+    const receiveLines = parsed.items.map((item) => {
+      const product = productById.get(item.productId);
+      if (!product) throw new Error("One or more products could not be found.");
+      const packSize = item.unitOfMeasure === "box" ? item.packSize : 1;
+      const baseQty = toBaseStockQuantity(item.quantity, packSize);
+      return { ...item, product, packSize, baseQty };
+    });
+
     const [createdReceipt] = await tx
       .insert(schema.receipts)
       .values({
@@ -408,19 +388,16 @@ export async function receiveStock(input: z.input<typeof receiveBatchSchema>) {
       })
       .returning({ id: schema.receipts.id, number: schema.receipts.number });
 
-    for (const item of parsed.items) {
-      const packSize = item.unitOfMeasure === "box" ? item.packSize : 1;
-      const baseQty = item.quantity * packSize;
-
+    for (const item of receiveLines) {
       await tx.insert(schema.stockMovements).values({
         orgId: org.id,
         productId: item.productId,
         kind: "receive",
-        onHandDelta: baseQty,
+        onHandDelta: item.baseQty,
         committedDelta: 0,
         quantityInput: item.quantity,
         unitOfMeasure: item.unitOfMeasure,
-        packSize,
+        packSize: item.packSize,
         referenceType: "receipt",
         referenceId: createdReceipt.id,
         unitCost: item.unitCost != null ? String(item.unitCost) : null,
@@ -430,7 +407,10 @@ export async function receiveStock(input: z.input<typeof receiveBatchSchema>) {
       await tx
         .update(schema.products)
         .set({
-          onHand: sql`${schema.products.onHand} + ${baseQty}`,
+          onHand: sql`${schema.products.onHand} + ${item.baseQty}`,
+          ...(item.unitOfMeasure === "box" && item.product.packSize !== item.packSize
+            ? { packSize: item.packSize }
+            : {}),
           ...(item.unitCost != null ? { cost: String(item.unitCost) } : {}),
           ...(item.currentPrice != null ? { price: String(item.currentPrice) } : {}),
           updatedAt: new Date(),
@@ -444,6 +424,9 @@ export async function receiveStock(input: z.input<typeof receiveBatchSchema>) {
   revalidatePath("/products");
   revalidatePath("/check-in");
   revalidatePath("/shop");
+  for (const productId of productIds) {
+    revalidatePath(`/products/${productId}`);
+  }
   return { id: receipt.id, number: receipt.number };
 }
 

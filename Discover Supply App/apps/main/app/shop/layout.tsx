@@ -3,7 +3,7 @@ import { requireCustomer } from "@/modules/customers/portal-auth";
 import { CartBadge } from "@/modules/storefront/components/cart-badge";
 
 export default async function ShopLayout({ children }: { children: React.ReactNode }) {
-  const { active } = await requireCustomer();
+  const { active } = await requireCustomer("/shop");
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -28,7 +28,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
               href="/portal"
               className="rounded-md px-3 py-1.5 hover:bg-secondary"
             >
-              My account
+              Customer portal
             </Link>
             <CartBadge />
           </nav>

@@ -1,7 +1,11 @@
 import Link from "next/link";
-import { FileText, ShoppingBag, Home, LogOut } from "lucide-react";
-import { requireCustomer } from "@/modules/customers/portal-auth";
+import { FileText, ShoppingBag, Home, LogOut, Store } from "lucide-react";
+import {
+  PORTAL_DEV_CONTACT_COOKIE,
+  requireCustomer,
+} from "@/modules/customers/portal-auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const { active } = await requireCustomer();
@@ -10,6 +14,8 @@ export default async function PortalLayout({ children }: { children: React.React
     "use server";
     const supabase = await createSupabaseServerClient();
     await supabase.auth.signOut();
+    const cookieStore = await cookies();
+    cookieStore.delete(PORTAL_DEV_CONTACT_COOKIE);
   }
 
   return (
@@ -21,6 +27,7 @@ export default async function PortalLayout({ children }: { children: React.React
           </Link>
           <nav className="flex items-center gap-1 text-sm">
             <NavLink href="/portal" icon={<Home className="h-4 w-4" />} label="Home" />
+            <NavLink href="/shop" icon={<Store className="h-4 w-4" />} label="Shop" />
             <NavLink href="/portal/orders" icon={<ShoppingBag className="h-4 w-4" />} label="Orders" />
             <NavLink href="/portal/invoices" icon={<FileText className="h-4 w-4" />} label="Invoices" />
             <form action={signOut}>

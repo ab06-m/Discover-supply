@@ -14,7 +14,7 @@ export default async function ShopCatalog({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const { active } = await requireCustomer();
+  const { active } = await requireCustomer("/shop");
   const { q } = await searchParams;
   const items = await listCatalog(active.org.id, { search: q });
 
