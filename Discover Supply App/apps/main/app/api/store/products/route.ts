@@ -14,15 +14,7 @@ function numberParam(value: string | null, fallback: number) {
 
 async function resolveStoreOrgId() {
   const configured = process.env.STORE_ORG_ID ?? process.env.NEXT_PUBLIC_STORE_ORG_ID;
-  if (configured) return configured;
-
-  const [org] = await db
-    .select({ id: schema.organizations.id })
-    .from(schema.organizations)
-    .orderBy(asc(schema.organizations.createdAt))
-    .limit(1);
-
-  return org?.id ?? null;
+  return configured?.trim() || null;
 }
 
 export async function GET(request: Request) {

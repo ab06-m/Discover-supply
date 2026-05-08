@@ -37,22 +37,9 @@ type CartItem = {
   quantity: number;
 };
 
-type CustomerAddress = {
-  line1?: string;
-  line2?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  country?: string;
-};
-
 type MatchedCustomer = {
   id: string;
   name: string;
-  email: string | null;
-  phone: string | null;
-  billingAddress: CustomerAddress | null;
-  shippingAddress: CustomerAddress | null;
 };
 
 type Panel = "cart" | "profile" | null;
@@ -73,17 +60,6 @@ function formatMoney(value: string | number, currency: string) {
 
 function normalizeCode(value: string | null | undefined) {
   return (value ?? "").trim().toLowerCase();
-}
-
-function addressLines(address: CustomerAddress | null | undefined) {
-  if (!address) return [];
-
-  const cityState = [address.city, address.state].filter(Boolean).join(", ");
-  const cityLine = [cityState, address.postalCode].filter(Boolean).join(" ");
-
-  return [address.line1, address.line2, cityLine, address.country].filter(
-    (line): line is string => Boolean(line),
-  );
 }
 
 function getBarcodeDetector() {
@@ -164,8 +140,6 @@ export function BuyerBrowseExperience({
     (sum, item) => sum + Number.parseFloat(item.price) * item.quantity,
     0,
   );
-  const matchedAddress = matchedCustomer?.shippingAddress ?? matchedCustomer?.billingAddress ?? null;
-  const matchedAddressLines = addressLines(matchedAddress);
   const portalLoginHref = mainAppHref("/portal/login?next=/portal");
   const portalShopHref = mainAppHref("/shop");
 
@@ -345,7 +319,7 @@ export function BuyerBrowseExperience({
       setMatchedCustomer(payload.customer);
       setMatchedLookupValue(lookup);
       setLookupStatus("found");
-      setLookupMessage("Customer found. Confirm the details before submitting.");
+      setLookupMessage("Customer found. Confirm the name before submitting.");
     } catch (error) {
       setMatchedCustomer(null);
       setMatchedLookupValue("");
@@ -848,19 +822,7 @@ export function BuyerBrowseExperience({
                             <div className="buyer-customer-confirmation">
                               <span>Confirm customer</span>
                               <strong>{matchedCustomer.name}</strong>
-                              {matchedAddressLines.length ? (
-                                <address>
-                                  {matchedAddressLines.map((line) => (
-                                    <span key={line}>{line}</span>
-                                  ))}
-                                </address>
-                              ) : (
-                                <p>No address on file.</p>
-                              )}
-                              <div>
-                                {matchedCustomer.email ? <small>{matchedCustomer.email}</small> : null}
-                                {matchedCustomer.phone ? <small>{matchedCustomer.phone}</small> : null}
-                              </div>
+                              <p>We will attach this cart to the matched customer account.</p>
                             </div>
                           ) : null}
                         </>

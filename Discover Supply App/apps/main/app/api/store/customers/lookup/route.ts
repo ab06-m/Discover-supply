@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, asc, eq, or, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -16,15 +16,7 @@ const lookupSchema = z
 
 async function resolveStoreOrgId() {
   const configured = process.env.STORE_ORG_ID ?? process.env.NEXT_PUBLIC_STORE_ORG_ID;
-  if (configured) return configured;
-
-  const [org] = await db
-    .select({ id: schema.organizations.id })
-    .from(schema.organizations)
-    .orderBy(asc(schema.organizations.createdAt))
-    .limit(1);
-
-  return org?.id ?? null;
+  return configured?.trim() || null;
 }
 
 function cleanEmail(value: string | undefined) {
@@ -77,10 +69,6 @@ export async function POST(request: Request) {
     .select({
       id: schema.customers.id,
       name: schema.customers.name,
-      email: schema.customers.email,
-      phone: schema.customers.phone,
-      billingAddress: schema.customers.billingAddress,
-      shippingAddress: schema.customers.shippingAddress,
     })
     .from(schema.customers)
     .where(

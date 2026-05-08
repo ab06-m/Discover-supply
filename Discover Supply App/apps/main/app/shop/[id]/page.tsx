@@ -24,7 +24,7 @@ export default async function ShopItem({
         <ArrowLeft className="mr-1 h-4 w-4" /> Back to catalog
       </Link>
       <div className="grid gap-6 md:grid-cols-2">
-        <div className="aspect-square overflow-hidden rounded-lg border bg-slate-100">
+        <div className="aspect-square overflow-hidden rounded-lg border bg-muted">
           {p.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />

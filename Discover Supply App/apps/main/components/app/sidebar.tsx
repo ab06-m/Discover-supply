@@ -62,8 +62,8 @@ function CompactNavLinks({
             className={cn(
               "flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] leading-tight transition-colors",
               active
-                ? "bg-white font-semibold text-primary shadow-sm"
-                : "font-medium text-white/80 hover:bg-white/10 hover:text-white",
+                ? "bg-sidebar-active font-semibold text-primary shadow-sm dark:text-white"
+                : "font-medium text-sidebar-muted hover:bg-sidebar-active hover:text-sidebar-foreground dark:text-white/80 dark:hover:bg-white/10 dark:hover:text-white",
             )}
           >
             <Icon className="h-4 w-4 shrink-0" />
@@ -99,8 +99,8 @@ function ExpandedNavLinks({
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
               active
-                ? "bg-white text-primary shadow-sm"
-                : "text-white/85 hover:bg-white/10 hover:text-white",
+                ? "bg-sidebar-active text-primary shadow-sm dark:text-white"
+                : "text-sidebar-muted hover:bg-sidebar-active hover:text-sidebar-foreground dark:text-white/85 dark:hover:bg-white/10 dark:hover:text-white",
             )}
           >
             <Icon className="h-4 w-4 shrink-0" />
@@ -117,7 +117,7 @@ function OrgBadge({ orgName, compact = false }: { orgName: string; compact?: boo
   if (compact) {
     return (
       <div className="flex justify-center px-0 py-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-white text-base font-bold text-primary shadow-sm">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-primary text-base font-bold text-primary-foreground shadow-sm">
           {initial}
         </div>
       </div>
@@ -125,12 +125,12 @@ function OrgBadge({ orgName, compact = false }: { orgName: string; compact?: boo
   }
   return (
     <div className="flex items-center gap-3 px-4 py-4">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-base font-bold text-primary shadow-sm">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-base font-bold text-primary-foreground shadow-sm">
         {initial}
       </div>
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold leading-tight text-white">{orgName}</div>
-        <div className="text-xs text-white/70">Inventory</div>
+        <div className="truncate text-sm font-semibold leading-tight text-sidebar-foreground">{orgName}</div>
+        <div className="text-xs text-sidebar-muted">Inventory</div>
       </div>
     </div>
   );
@@ -145,7 +145,7 @@ function ThemeToggle() {
       onClick={toggle}
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
       aria-label="Toggle color theme"
-      className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white transition-colors hover:bg-white/20"
+      className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-foreground transition-colors hover:bg-accent dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
     >
       {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
     </button>
@@ -155,10 +155,10 @@ function ThemeToggle() {
 export function Sidebar({ orgName }: { orgName: string }) {
   const pathname = usePathname();
   return (
-    <aside className="hidden w-[84px] shrink-0 flex-col items-center bg-sidebar md:flex">
+    <aside className="hidden w-[84px] shrink-0 flex-col items-center border-r bg-sidebar text-sidebar-foreground md:flex dark:border-white/10">
       <OrgBadge orgName={orgName} compact />
       <CompactNavLinks pathname={pathname} />
-      <div className="flex w-full flex-col items-center gap-2 border-t border-white/10 px-0 py-3">
+      <div className="flex w-full flex-col items-center gap-2 border-t px-0 py-3 dark:border-white/10">
         <ThemeToggle />
       </div>
     </aside>
@@ -185,20 +185,20 @@ export function MobileSidebar({ orgName }: { orgName: string }) {
             onClick={() => setOpen(false)}
             aria-hidden="true"
           />
-          <aside className="absolute left-0 top-0 flex h-full w-64 flex-col bg-sidebar shadow-xl">
+          <aside className="absolute left-0 top-0 flex h-full w-64 flex-col border-r bg-sidebar text-sidebar-foreground shadow-xl dark:border-white/10">
             <div className="flex items-center justify-between">
               <OrgBadge orgName={orgName} />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="mr-3 inline-flex h-9 w-9 items-center justify-center rounded-md text-white/80 hover:bg-white/10 hover:text-white"
+                className="mr-3 inline-flex h-9 w-9 items-center justify-center rounded-md text-sidebar-muted hover:bg-sidebar-active hover:text-sidebar-foreground dark:text-white/80 dark:hover:bg-white/10 dark:hover:text-white"
                 aria-label="Close menu"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
             <ExpandedNavLinks pathname={pathname} onNavigate={() => setOpen(false)} />
-            <div className="flex items-center justify-end gap-2 border-t border-white/10 px-3 py-3">
+            <div className="flex items-center justify-end gap-2 border-t px-3 py-3 dark:border-white/10">
               <ThemeToggle />
             </div>
           </aside>

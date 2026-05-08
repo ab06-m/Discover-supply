@@ -13,95 +13,122 @@
  * Callers must check permissions BEFORE invoking.
  */
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import type { StageEffect } from "../schema";
+
+type DbExecutor = Pick<typeof db, "select" | "update" | "insert">;
 
 export async function applyStageEffect({
   orgId,
   orderId,
   effect,
   userId,
+  executor = db,
 }: {
   orgId: string;
   orderId: string;
   effect: StageEffect;
   userId: string | null;
+  executor?: DbExecutor;
 }) {
   if (effect === "none") return;
 
   if (effect === "mark_paid") {
-    await db
+    await executor
       .update(schema.orders)
       .set({ amountPaid: sql`${schema.orders.total}`, updatedAt: new Date() })
       .where(and(eq(schema.orders.orgId, orgId), eq(schema.orders.id, orderId)));
     return;
   }
 
-  const items = await db
+  const items = await executor
     .select({
       productId: schema.orderItems.productId,
-      quantity: schema.orderItems.quantity,
+      quantity: sql<number>`sum(${schema.orderItems.quantity})::int`,
     })
     .from(schema.orderItems)
-    .where(eq(schema.orderItems.orderId, orderId));
+    .where(and(eq(schema.orderItems.orgId, orgId), eq(schema.orderItems.orderId, orderId)))
+    .groupBy(schema.orderItems.productId);
 
-  for (const it of items) {
-    if (!it.productId) continue;
-    const qty = it.quantity;
+  const productIds = items
+    .map((item) => item.productId)
+    .filter((productId): productId is string => Boolean(productId));
+  if (!productIds.length) return;
 
+  const movementRows = await executor
+    .select({
+      productId: schema.stockMovements.productId,
+      onHandDelta: sql<number>`coalesce(sum(${schema.stockMovements.onHandDelta}), 0)::int`,
+      committedDelta: sql<number>`coalesce(sum(${schema.stockMovements.committedDelta}), 0)::int`,
+    })
+    .from(schema.stockMovements)
+    .where(
+      and(
+        eq(schema.stockMovements.orgId, orgId),
+        eq(schema.stockMovements.referenceType, "order"),
+        eq(schema.stockMovements.referenceId, orderId),
+        inArray(schema.stockMovements.productId, productIds),
+      ),
+    )
+    .groupBy(schema.stockMovements.productId);
+
+  const movementByProductId = new Map(
+    movementRows.map((row) => [row.productId, row]),
+  );
+
+  for (const item of items) {
+    if (!item.productId) continue;
+
+    const qty = Number(item.quantity);
+    const current = movementByProductId.get(item.productId);
+    const currentOnHandDelta = Number(current?.onHandDelta ?? 0);
+    const currentCommittedDelta = Number(current?.committedDelta ?? 0);
+
+    let desiredOnHandDelta = 0;
+    let desiredCommittedDelta = 0;
     if (effect === "commit") {
-      await db
-        .update(schema.products)
-        .set({ committed: sql`${schema.products.committed} + ${qty}`, updatedAt: new Date() })
-        .where(and(eq(schema.products.orgId, orgId), eq(schema.products.id, it.productId)));
-      await db.insert(schema.stockMovements).values({
-        orgId,
-        productId: it.productId,
-        kind: "commit",
-        onHandDelta: 0,
-        committedDelta: qty,
-        referenceType: "order",
-        referenceId: orderId,
-        createdBy: userId,
-      });
-    } else if (effect === "release") {
-      await db
-        .update(schema.products)
-        .set({
-          committed: sql`greatest(0, ${schema.products.committed} - ${qty})`,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(schema.products.orgId, orgId), eq(schema.products.id, it.productId)));
-      await db.insert(schema.stockMovements).values({
-        orgId,
-        productId: it.productId,
-        kind: "release",
-        onHandDelta: 0,
-        committedDelta: -qty,
-        referenceType: "order",
-        referenceId: orderId,
-        createdBy: userId,
-      });
+      desiredCommittedDelta = qty;
     } else if (effect === "consume") {
-      await db
-        .update(schema.products)
-        .set({
-          onHand: sql`${schema.products.onHand} - ${qty}`,
-          committed: sql`greatest(0, ${schema.products.committed} - ${qty})`,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(schema.products.orgId, orgId), eq(schema.products.id, it.productId)));
-      await db.insert(schema.stockMovements).values({
+      desiredOnHandDelta = -qty;
+    }
+
+    const onHandDelta = desiredOnHandDelta - currentOnHandDelta;
+    const committedDelta = desiredCommittedDelta - currentCommittedDelta;
+    if (onHandDelta === 0 && committedDelta === 0) continue;
+
+    const updateCondition =
+      onHandDelta < 0
+        ? and(
+            eq(schema.products.orgId, orgId),
+            eq(schema.products.id, item.productId),
+            sql`${schema.products.onHand} + ${onHandDelta} >= 0`,
+          )
+        : and(eq(schema.products.orgId, orgId), eq(schema.products.id, item.productId));
+
+    const [updated] = await executor
+      .update(schema.products)
+      .set({
+        onHand: sql`${schema.products.onHand} + ${onHandDelta}`,
+        committed: sql`greatest(0, ${schema.products.committed} + ${committedDelta})`,
+        updatedAt: new Date(),
+      })
+      .where(updateCondition)
+      .returning({ id: schema.products.id });
+
+    if (!updated) {
+      throw new Error("Insufficient stock available for this stage change.");
+    }
+
+    await executor.insert(schema.stockMovements).values({
         orgId,
-        productId: it.productId,
-        kind: "consume",
-        onHandDelta: -qty,
-        committedDelta: -qty,
+        productId: item.productId,
+        kind: effect,
+        onHandDelta,
+        committedDelta,
         referenceType: "order",
         referenceId: orderId,
         createdBy: userId,
       });
-    }
   }
 }

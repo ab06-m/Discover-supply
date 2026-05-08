@@ -38,7 +38,7 @@ export default async function ShopCatalog({
           {items.map((p) => (
             <Card key={p.id} className="flex flex-col overflow-hidden">
               <Link href={`/shop/${p.id}`} className="block">
-                <div className="aspect-square bg-slate-100">
+                <div className="aspect-square bg-muted">
                   {p.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

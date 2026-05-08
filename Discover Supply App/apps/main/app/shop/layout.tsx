@@ -6,8 +6,8 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
   const { active } = await requireCustomer("/shop");
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b bg-white">
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="border-b bg-card">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div>
             <Link href="/shop" className="text-base font-semibold">

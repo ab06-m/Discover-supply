@@ -8,7 +8,7 @@ import { db, schema } from "@/lib/db";
 import { requireActiveOrg } from "@/lib/auth";
 import { assertCan } from "@/lib/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { generateDocNumber } from "./lib/generate-number";
+import { generateDocNumber, withDocumentNumberRetry } from "./lib/generate-number";
 import type { Role } from "@/lib/permissions";
 import { productSchema } from "./product-schema";
 
@@ -222,16 +222,9 @@ export async function createCheckInItem(formData: FormData) {
     ),
   );
 
-  const receiptNumber = openingQuantity > 0
-    ? await generateDocNumber({
-        table: schema.receipts,
-        orgId: org.id,
-        prefix: "RCV",
-      })
-    : null;
-
+  let receiptNumber: string | null = null;
   let receiptId: string | null = null;
-  await db.transaction(async (tx) => {
+  await withDocumentNumberRetry(async () => db.transaction(async (tx) => {
     await tx.insert(schema.products).values({
       id: productId,
       orgId: org.id,
@@ -259,7 +252,12 @@ export async function createCheckInItem(formData: FormData) {
       updatedAt: new Date(),
     });
 
-    if (openingQuantity > 0 && receiptNumber) {
+    if (openingQuantity > 0) {
+      receiptNumber = await generateDocNumber({
+        table: schema.receipts,
+        orgId: org.id,
+        prefix: "RCV",
+      });
       const [receipt] = await tx
         .insert(schema.receipts)
         .values({
@@ -301,7 +299,7 @@ export async function createCheckInItem(formData: FormData) {
         })
         .where(and(eq(schema.products.orgId, org.id), eq(schema.products.id, productId)));
     }
-  });
+  }));
 
   revalidatePath("/check-in");
   revalidatePath("/products");
@@ -338,13 +336,14 @@ export async function receiveStock(input: z.input<typeof receiveBatchSchema>) {
   const parsed = receiveBatchSchema.parse(input);
   const productIds = Array.from(new Set(parsed.items.map((item) => item.productId)));
 
-  const number = await generateDocNumber({
-    table: schema.receipts,
-    orgId: org.id,
-    prefix: "RCV",
-  });
+  const receipt = await withDocumentNumberRetry(async () => {
+    const number = await generateDocNumber({
+      table: schema.receipts,
+      orgId: org.id,
+      prefix: "RCV",
+    });
 
-  const receipt = await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
     const products = await tx
       .select({
         id: schema.products.id,
@@ -420,6 +419,7 @@ export async function receiveStock(input: z.input<typeof receiveBatchSchema>) {
 
     return createdReceipt;
   });
+  });
 
   revalidatePath("/products");
   revalidatePath("/check-in");
@@ -441,22 +441,44 @@ export async function adjustStock(input: z.input<typeof adjustSchema>) {
   assertCan(role as Role, "stock.adjust");
   const parsed = adjustSchema.parse(input);
 
-  await db.insert(schema.stockMovements).values({
-    orgId: org.id,
-    productId: parsed.productId,
-    kind: "adjust",
-    onHandDelta: parsed.delta,
-    committedDelta: 0,
-    note: parsed.note ?? null,
-    createdBy: user.id,
+  await db.transaction(async (tx) => {
+    const [product] = await tx
+      .select({
+        id: schema.products.id,
+        name: schema.products.name,
+        kind: schema.products.kind,
+        trackStock: schema.products.trackStock,
+        isActive: schema.products.isActive,
+        onHand: schema.products.onHand,
+      })
+      .from(schema.products)
+      .where(and(eq(schema.products.orgId, org.id), eq(schema.products.id, parsed.productId)))
+      .limit(1);
+    if (!product) throw new Error("Product not found");
+    if (product.kind !== "goods" || !product.trackStock || !product.isActive) {
+      throw new Error(`${product.name} cannot be adjusted because it is inactive or not inventory-tracked.`);
+    }
+    if (product.onHand + parsed.delta < 0) {
+      throw new Error("Adjustment would make on-hand stock negative.");
+    }
+
+    await tx.insert(schema.stockMovements).values({
+      orgId: org.id,
+      productId: parsed.productId,
+      kind: "adjust",
+      onHandDelta: parsed.delta,
+      committedDelta: 0,
+      note: parsed.note ?? null,
+      createdBy: user.id,
+    });
+    await tx
+      .update(schema.products)
+      .set({
+        onHand: sql`${schema.products.onHand} + ${parsed.delta}`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(schema.products.orgId, org.id), eq(schema.products.id, parsed.productId)));
   });
-  await db
-    .update(schema.products)
-    .set({
-      onHand: sql`${schema.products.onHand} + ${parsed.delta}`,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(schema.products.orgId, org.id), eq(schema.products.id, parsed.productId)));
 
   revalidatePath("/products");
 }

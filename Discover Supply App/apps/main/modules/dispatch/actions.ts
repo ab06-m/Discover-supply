@@ -138,58 +138,63 @@ export async function markDelivered(input: z.input<typeof deliverSchema>) {
     parsed.signatureDataUrl ?? "",
   );
 
-  const [d] = await db
-    .update(schema.dispatches)
-    .set({
-      status: "delivered",
-      deliveredAt: new Date(),
-      recipientName: parsed.recipientName,
-      deliveryNotes: parsed.deliveryNotes || null,
-      latitude: parsed.latitude != null ? String(parsed.latitude) : null,
-      longitude: parsed.longitude != null ? String(parsed.longitude) : null,
-      proofImageUrl: proofUrl,
-      signatureUrl: sigUrl,
-    })
-    .where(and(eq(schema.dispatches.orgId, org.id), eq(schema.dispatches.id, parsed.dispatchId)))
-    .returning({ orderId: schema.dispatches.orderId });
-  if (!d) throw new Error("Dispatch not found");
+  const orderId = await db.transaction(async (tx) => {
+    const [d] = await tx
+      .update(schema.dispatches)
+      .set({
+        status: "delivered",
+        deliveredAt: new Date(),
+        recipientName: parsed.recipientName,
+        deliveryNotes: parsed.deliveryNotes || null,
+        latitude: parsed.latitude != null ? String(parsed.latitude) : null,
+        longitude: parsed.longitude != null ? String(parsed.longitude) : null,
+        proofImageUrl: proofUrl,
+        signatureUrl: sigUrl,
+      })
+      .where(and(eq(schema.dispatches.orgId, org.id), eq(schema.dispatches.id, parsed.dispatchId)))
+      .returning({ orderId: schema.dispatches.orderId });
+    if (!d) throw new Error("Dispatch not found");
 
-  // Auto-transition order to a stage with effect='consume' if one exists.
-  const consumeStage = await db
-    .select()
-    .from(schema.orderStages)
-    .where(and(eq(schema.orderStages.orgId, org.id), eq(schema.orderStages.effect, "consume")))
-    .limit(1);
-  if (consumeStage.length) {
-    const target = consumeStage[0];
-    const current = await db
-      .select({ stageId: schema.orders.stageId })
-      .from(schema.orders)
-      .where(eq(schema.orders.id, d.orderId))
+    // Auto-transition order to a stage with effect='consume' if one exists.
+    const consumeStage = await tx
+      .select()
+      .from(schema.orderStages)
+      .where(and(eq(schema.orderStages.orgId, org.id), eq(schema.orderStages.effect, "consume")))
       .limit(1);
-    if (current[0]?.stageId !== target.id) {
-      await db
-        .update(schema.orders)
-        .set({ stageId: target.id, updatedAt: new Date() })
-        .where(eq(schema.orders.id, d.orderId));
-      await db.insert(schema.orderStageHistory).values({
-        orgId: org.id,
-        orderId: d.orderId,
-        fromStageId: current[0]?.stageId ?? null,
-        toStageId: target.id,
-        changedBy: user.id,
-        note: `Delivered to ${parsed.recipientName}`,
-      });
-      await applyStageEffect({
-        orgId: org.id,
-        orderId: d.orderId,
-        effect: "consume",
-        userId: user.id,
-      });
+    if (consumeStage.length) {
+      const target = consumeStage[0];
+      const current = await tx
+        .select({ stageId: schema.orders.stageId })
+        .from(schema.orders)
+        .where(and(eq(schema.orders.orgId, org.id), eq(schema.orders.id, d.orderId)))
+        .limit(1);
+      if (current[0]?.stageId !== target.id) {
+        await tx
+          .update(schema.orders)
+          .set({ stageId: target.id, updatedAt: new Date() })
+          .where(and(eq(schema.orders.orgId, org.id), eq(schema.orders.id, d.orderId)));
+        await tx.insert(schema.orderStageHistory).values({
+          orgId: org.id,
+          orderId: d.orderId,
+          fromStageId: current[0]?.stageId ?? null,
+          toStageId: target.id,
+          changedBy: user.id,
+          note: `Delivered to ${parsed.recipientName}`,
+        });
+        await applyStageEffect({
+          orgId: org.id,
+          orderId: d.orderId,
+          effect: "consume",
+          userId: user.id,
+          executor: tx,
+        });
+      }
     }
-  }
+
+    return d.orderId;
+  });
 
   revalidatePath("/delivery");
   revalidatePath(`/delivery/${parsed.dispatchId}`);
-  revalidatePath(`/orders/${d.orderId}`);
+  revalidatePath(`/orders/${orderId}`);
 }

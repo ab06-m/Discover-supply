@@ -42,7 +42,7 @@ export default async function PortalDevPage({
         .limit(50);
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8">
+    <main className="min-h-screen bg-background px-4 py-8 text-foreground">
       <div className="mx-auto max-w-3xl space-y-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Portal dev preview</h1>

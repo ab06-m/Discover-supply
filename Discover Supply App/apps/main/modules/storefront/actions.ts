@@ -5,7 +5,7 @@ import { z } from "zod";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireCustomer } from "@/modules/customers/portal-auth";
-import { generateDocNumber } from "@/modules/inventory/lib/generate-number";
+import { generateDocNumber, withDocumentNumberRetry } from "@/modules/inventory/lib/generate-number";
 import { getInitialStage } from "@/modules/orders/queries";
 import { applyStageEffect } from "@/modules/orders/lib/apply-stage-effect";
 
@@ -62,61 +62,68 @@ export async function placeStorefrontOrder(input: z.input<typeof checkoutSchema>
   const initial = await getInitialStage(orgId);
   if (!initial) throw new Error("Workspace is not ready to accept orders.");
 
-  const number = await generateDocNumber({
-    table: schema.orders,
-    orgId,
-    prefix: "SO",
-  });
-
-  const [order] = await db
-    .insert(schema.orders)
-    .values({
+  const order = await withDocumentNumberRetry(async () => {
+    const number = await generateDocNumber({
+      table: schema.orders,
       orgId,
-      number,
-      customerId: active.contact.customerId,
-      stageId: initial.id,
-      shippingAddress: (active.customer.shippingAddress ?? null) as any,
-      subtotal: String(subtotal),
-      taxTotal: String(taxTotal),
-      discountTotal: "0",
-      total: String(total),
-      notes: parsed.notes || null,
-      createdBy: user.id,
-      source: "storefront",
-    })
-    .returning({ id: schema.orders.id, number: schema.orders.number });
-
-  await db.insert(schema.orderItems).values(
-    lines.map((l) => ({
-      orgId,
-      orderId: order.id,
-      productId: l.productId,
-      name: l.name,
-      sku: l.sku,
-      quantity: l.quantity,
-      unitPrice: String(l.unitPrice),
-      taxRate: String(orgTaxRate),
-      lineTotal: String(l.lineTotal),
-    })),
-  );
-
-  await db.insert(schema.orderStageHistory).values({
-    orgId,
-    orderId: order.id,
-    fromStageId: null,
-    toStageId: initial.id,
-    changedBy: user.id,
-    note: "Order placed from storefront",
-  });
-
-  if (initial.effect !== "none") {
-    await applyStageEffect({
-      orgId,
-      orderId: order.id,
-      effect: initial.effect,
-      userId: user.id,
+      prefix: "SO",
     });
-  }
+
+    return db.transaction(async (tx) => {
+      const [createdOrder] = await tx
+        .insert(schema.orders)
+        .values({
+          orgId,
+          number,
+          customerId: active.contact.customerId,
+          stageId: initial.id,
+          shippingAddress: (active.customer.shippingAddress ?? null) as any,
+          subtotal: String(subtotal),
+          taxTotal: String(taxTotal),
+          discountTotal: "0",
+          total: String(total),
+          notes: parsed.notes || null,
+          createdBy: user.id,
+          source: "storefront",
+        })
+        .returning({ id: schema.orders.id, number: schema.orders.number });
+
+      await tx.insert(schema.orderItems).values(
+        lines.map((l) => ({
+          orgId,
+          orderId: createdOrder.id,
+          productId: l.productId,
+          name: l.name,
+          sku: l.sku,
+          quantity: l.quantity,
+          unitPrice: String(l.unitPrice),
+          taxRate: String(orgTaxRate),
+          lineTotal: String(l.lineTotal),
+        })),
+      );
+
+      await tx.insert(schema.orderStageHistory).values({
+        orgId,
+        orderId: createdOrder.id,
+        fromStageId: null,
+        toStageId: initial.id,
+        changedBy: user.id,
+        note: "Order placed from storefront",
+      });
+
+      if (initial.effect !== "none") {
+        await applyStageEffect({
+          orgId,
+          orderId: createdOrder.id,
+          effect: initial.effect,
+          userId: user.id,
+          executor: tx,
+        });
+      }
+
+      return createdOrder;
+    });
+  });
 
   revalidatePath("/portal/orders");
   revalidatePath("/orders");

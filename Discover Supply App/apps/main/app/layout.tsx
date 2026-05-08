@@ -26,25 +26,69 @@ const themeInitScript = `(() => {
 })();`;
 
 const criticalFallbackStyles = `
+  :root {
+    --background: 220 14% 96%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 217 91% 96%;
+    --accent-foreground: 221 83% 33%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-active: 217 91% 96%;
+    --sidebar-muted: 220 9% 46%;
+  }
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+    --primary: 221 83% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 22%;
+    --accent-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --sidebar: 222 47% 11%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-active: 221 83% 53%;
+    --sidebar-muted: 215 20% 65%;
+  }
   html, body { min-height: 100%; }
   body {
     margin: 0;
-    background: #f8fafc;
-    color: #0f172a;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
     font-family: 'DM Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   a { color: inherit; text-decoration: none; }
   .min-h-screen { min-height: 100vh; }
-  .bg-slate-50, .bg-background { background: #f8fafc; }
-  .bg-white, .bg-card { background: #fff; }
-  .bg-secondary { background: #f1f5f9; }
-  .bg-primary { background: #2563eb; }
-  .text-foreground, .text-card-foreground { color: #0f172a; }
-  .text-muted-foreground { color: #64748b; }
-  .text-primary { color: #2563eb; }
-  .text-primary-foreground, .text-white { color: #fff; }
-  .border, .border-b, .border-t { border-color: #e2e8f0; }
+  .bg-slate-50, .bg-background { background: hsl(var(--background)); }
+  .bg-white, .bg-card { background: hsl(var(--card)); }
+  .bg-secondary { background: hsl(var(--secondary)); }
+  .bg-primary { background: hsl(var(--primary)); }
+  .bg-sidebar { background: hsl(var(--sidebar)); }
+  .text-foreground { color: hsl(var(--foreground)); }
+  .text-card-foreground { color: hsl(var(--card-foreground)); }
+  .text-muted-foreground { color: hsl(var(--muted-foreground)); }
+  .text-primary { color: hsl(var(--primary)); }
+  .text-sidebar-foreground { color: hsl(var(--sidebar-foreground)); }
+  .text-sidebar-muted { color: hsl(var(--sidebar-muted)); }
+  .text-primary-foreground, .text-white { color: hsl(var(--primary-foreground)); }
+  .border, .border-b, .border-t { border-color: hsl(var(--border)); }
   .border { border-width: 1px; border-style: solid; }
   .border-b { border-bottom-width: 1px; border-bottom-style: solid; }
   .border-t { border-top-width: 1px; border-top-style: solid; }
@@ -107,7 +151,7 @@ const criticalFallbackStyles = `
   .space-y-3 > * + * { margin-top: 0.75rem; }
   .space-y-4 > * + * { margin-top: 1rem; }
   .space-y-6 > * + * { margin-top: 1.5rem; }
-  .divide-y > * + * { border-top: 1px solid #e2e8f0; }
+  .divide-y > * + * { border-top: 1px solid hsl(var(--border)); }
   .overflow-hidden { overflow: hidden; }
   .text-center { text-align: center; }
   .text-right { text-align: right; }
@@ -123,7 +167,7 @@ const criticalFallbackStyles = `
   .uppercase { text-transform: uppercase; }
   .whitespace-nowrap { white-space: nowrap; }
   .hover\\:underline:hover { text-decoration: underline; }
-  .hover\\:bg-secondary:hover { background: #f1f5f9; }
+  .hover\\:bg-secondary:hover { background: hsl(var(--secondary)); }
   .h-9 { height: 2.25rem; }
   .h-10 { height: 2.5rem; }
   .h-11 { height: 2.75rem; }
@@ -139,10 +183,10 @@ const criticalFallbackStyles = `
   button.bg-primary {
     color: #fff;
   }
-  .border-input { border-color: #e2e8f0; }
+  .border-input { border-color: hsl(var(--input)); }
   table { width: 100%; border-collapse: collapse; }
-  th, td { padding: 0.75rem; border-bottom: 1px solid #e2e8f0; }
-  th { text-align: left; color: #64748b; font-weight: 500; }
+  th, td { padding: 0.75rem; border-bottom: 1px solid hsl(var(--border)); }
+  th { text-align: left; color: hsl(var(--muted-foreground)); font-weight: 500; }
   @media (min-width: 768px) {
     .md\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .md\\:grid-cols-\\[1fr_320px\\] { grid-template-columns: 1fr 320px; }

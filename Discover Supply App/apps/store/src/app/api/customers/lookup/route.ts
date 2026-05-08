@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
+import { getMainAppUrl } from "@/lib/products-api";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_MAIN_APP_URL = "http://localhost:3000";
-
 export async function POST(request: Request) {
-  const baseUrl = process.env.MAIN_APP_URL ?? process.env.NEXT_PUBLIC_MAIN_APP_URL ?? DEFAULT_MAIN_APP_URL;
+  let baseUrl: string;
+  try {
+    baseUrl = getMainAppUrl();
+  } catch {
+    return NextResponse.json({ error: "Store is not configured." }, { status: 503 });
+  }
+
   const response = await fetch(new URL("/api/store/customers/lookup", baseUrl), {
     method: "POST",
     headers: { "content-type": "application/json" },

@@ -7,7 +7,7 @@ import { randomBytes } from "crypto";
 import { db, schema } from "@/lib/db";
 import { requireActiveOrg } from "@/lib/auth";
 import { assertCan, type Role } from "@/lib/permissions";
-import { generateDocNumber } from "@/modules/inventory/lib/generate-number";
+import { generateDocNumber, withDocumentNumberRetry } from "@/modules/inventory/lib/generate-number";
 import { DEFAULT_INVOICE_TEMPLATE_CONFIG } from "./schema";
 
 const createFromOrderSchema = z.object({
@@ -41,7 +41,7 @@ export async function createInvoiceFromOrder(input: z.input<typeof createFromOrd
     const c = await db
       .select()
       .from(schema.customers)
-      .where(eq(schema.customers.id, o.customerId))
+      .where(and(eq(schema.customers.orgId, org.id), eq(schema.customers.id, o.customerId)))
       .limit(1);
     customerSnapshot = c[0] ?? null;
   }
@@ -62,33 +62,37 @@ export async function createInvoiceFromOrder(input: z.input<typeof createFromOrd
     templateId = defaults[0]?.id ?? null;
   }
 
-  const number = await generateDocNumber({
-    table: schema.invoices,
-    orgId: org.id,
-    prefix: "INV",
-  });
-
-  const [invoice] = await db
-    .insert(schema.invoices)
-    .values({
+  const invoice = await withDocumentNumberRetry(async () => {
+    const number = await generateDocNumber({
+      table: schema.invoices,
       orgId: org.id,
-      orderId: o.id,
-      customerId: o.customerId,
-      templateId,
-      number,
-      status: "draft",
-      dueDate: parsed.dueDate ? new Date(parsed.dueDate) : null,
-      subtotal: o.subtotal,
-      taxTotal: o.taxTotal,
-      discountTotal: o.discountTotal,
-      total: o.total,
-      amountPaid: o.amountPaid,
-      customerSnapshot: customerSnapshot as any,
-      itemsSnapshot: items as any,
-      notes: parsed.notes || null,
-      terms: parsed.terms || null,
-    })
-    .returning({ id: schema.invoices.id, number: schema.invoices.number });
+      prefix: "INV",
+    });
+
+    const [createdInvoice] = await db
+      .insert(schema.invoices)
+      .values({
+        orgId: org.id,
+        orderId: o.id,
+        customerId: o.customerId,
+        templateId,
+        number,
+        status: "draft",
+        dueDate: parsed.dueDate ? new Date(parsed.dueDate) : null,
+        subtotal: o.subtotal,
+        taxTotal: o.taxTotal,
+        discountTotal: o.discountTotal,
+        total: o.total,
+        amountPaid: o.amountPaid,
+        customerSnapshot: customerSnapshot as any,
+        itemsSnapshot: items as any,
+        notes: parsed.notes || null,
+        terms: parsed.terms || null,
+      })
+      .returning({ id: schema.invoices.id, number: schema.invoices.number });
+
+    return createdInvoice;
+  });
 
   revalidatePath("/invoices");
   revalidatePath(`/orders/${o.id}`);
@@ -151,38 +155,39 @@ export async function recordPayment(input: z.input<typeof paymentSchema>) {
   assertCan(role as Role, "invoice.record_payment");
   const parsed = paymentSchema.parse(input);
 
-  await db.insert(schema.payments).values({
-    orgId: org.id,
-    invoiceId: parsed.invoiceId,
-    amount: String(parsed.amount),
-    method: parsed.method,
-    reference: parsed.reference || null,
-    note: parsed.note || null,
-    createdBy: user.id,
+  await db.transaction(async (tx) => {
+    const inv = await tx
+      .select({ total: schema.invoices.total })
+      .from(schema.invoices)
+      .where(and(eq(schema.invoices.orgId, org.id), eq(schema.invoices.id, parsed.invoiceId)))
+      .limit(1);
+    if (!inv.length) throw new Error("Invoice not found");
+
+    await tx.insert(schema.payments).values({
+      orgId: org.id,
+      invoiceId: parsed.invoiceId,
+      amount: String(parsed.amount),
+      method: parsed.method,
+      reference: parsed.reference || null,
+      note: parsed.note || null,
+      createdBy: user.id,
+    });
+
+    const [{ paid }] = await tx
+      .select({ paid: sql<string>`coalesce(sum(${schema.payments.amount}), 0)::text` })
+      .from(schema.payments)
+      .where(and(eq(schema.payments.orgId, org.id), eq(schema.payments.invoiceId, parsed.invoiceId)));
+
+    const paidNum = parseFloat(paid);
+    const totalNum = parseFloat(inv[0].total);
+    const newStatus: "paid" | "partial" | "sent" =
+      paidNum >= totalNum ? "paid" : paidNum > 0 ? "partial" : "sent";
+
+    await tx
+      .update(schema.invoices)
+      .set({ amountPaid: paid, status: newStatus })
+      .where(and(eq(schema.invoices.orgId, org.id), eq(schema.invoices.id, parsed.invoiceId)));
   });
-
-  // Sum payments, update invoice.
-  const [{ paid }] = await db
-    .select({ paid: sql<string>`coalesce(sum(${schema.payments.amount}), 0)::text` })
-    .from(schema.payments)
-    .where(eq(schema.payments.invoiceId, parsed.invoiceId));
-
-  const inv = await db
-    .select({ total: schema.invoices.total })
-    .from(schema.invoices)
-    .where(eq(schema.invoices.id, parsed.invoiceId))
-    .limit(1);
-  if (!inv.length) throw new Error("Invoice not found");
-
-  const paidNum = parseFloat(paid);
-  const totalNum = parseFloat(inv[0].total);
-  const newStatus: "paid" | "partial" | "sent" =
-    paidNum >= totalNum ? "paid" : paidNum > 0 ? "partial" : "sent";
-
-  await db
-    .update(schema.invoices)
-    .set({ amountPaid: paid, status: newStatus })
-    .where(and(eq(schema.invoices.orgId, org.id), eq(schema.invoices.id, parsed.invoiceId)));
 
   revalidatePath(`/invoices/${parsed.invoiceId}`);
   revalidatePath("/invoices");

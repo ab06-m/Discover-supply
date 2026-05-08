@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { generateDocNumber } from "@/modules/inventory/lib/generate-number";
+import { generateDocNumber, withDocumentNumberRetry } from "@/modules/inventory/lib/generate-number";
 import { getInitialStage } from "@/modules/orders/queries";
 
 export const dynamic = "force-dynamic";
@@ -44,15 +44,7 @@ const catalogOrderSchema = z
 
 async function resolveStoreOrgId() {
   const configured = process.env.STORE_ORG_ID ?? process.env.NEXT_PUBLIC_STORE_ORG_ID;
-  if (configured) return configured;
-
-  const [org] = await db
-    .select({ id: schema.organizations.id })
-    .from(schema.organizations)
-    .orderBy(asc(schema.organizations.createdAt))
-    .limit(1);
-
-  return org?.id ?? null;
+  return configured?.trim() || null;
 }
 
 async function getDraftStage(orgId: string) {
@@ -240,12 +232,6 @@ export async function POST(request: Request) {
   });
 
   const total = Number(subtotal.toFixed(2));
-  const number = await generateDocNumber({
-    table: schema.orders,
-    orgId,
-    prefix: "SO",
-  });
-
   let customerResult: Awaited<ReturnType<typeof resolveCatalogCustomer>>;
   try {
     customerResult = await resolveCatalogCustomer(orgId, parsed.data.customer);
@@ -256,54 +242,66 @@ export async function POST(request: Request) {
     );
   }
 
-  const [order] = await db
-    .insert(schema.orders)
-    .values({
+  const order = await withDocumentNumberRetry(async () => {
+    const number = await generateDocNumber({
+      table: schema.orders,
       orgId,
-      number,
-      customerId: customerResult.customer.id,
-      stageId: stage.id,
-      shippingAddress: (customerResult.customer.shippingAddress ?? null) as any,
-      subtotal: toMoney(subtotal),
-      taxTotal: "0.00",
-      discountTotal: "0.00",
-      total: toMoney(total),
-      amountPaid: "0.00",
-      notes: `Catalog order submitted by ${customerResult.customer.name}.`,
-      internalNotes:
-        customerResult.status === "created"
-          ? "Catalog order - new customer created"
-          : "Catalog order - existing customer matched",
-      createdBy: null,
-      source: catalogOrderSource,
-    })
-    .returning({ id: schema.orders.id, number: schema.orders.number });
+      prefix: "SO",
+    });
 
-  await db.insert(schema.orderItems).values(
-    lines.map((line) => ({
-      orgId,
-      orderId: order.id,
-      productId: line.productId,
-      name: line.name,
-      sku: line.sku,
-      quantity: line.quantity,
-      quantityInput: line.quantity,
-      unitOfMeasure: "each" as const,
-      packSize: 1,
-      unitPrice: toMoney(line.unitPrice),
-      discount: "0.00",
-      taxRate: "0.0000",
-      lineTotal: toMoney(line.lineTotal),
-    })),
-  );
+    return db.transaction(async (tx) => {
+      const [createdOrder] = await tx
+        .insert(schema.orders)
+        .values({
+          orgId,
+          number,
+          customerId: customerResult.customer.id,
+          stageId: stage.id,
+          shippingAddress: (customerResult.customer.shippingAddress ?? null) as any,
+          subtotal: toMoney(subtotal),
+          taxTotal: "0.00",
+          discountTotal: "0.00",
+          total: toMoney(total),
+          amountPaid: "0.00",
+          notes: `Catalog order submitted by ${customerResult.customer.name}.`,
+          internalNotes:
+            customerResult.status === "created"
+              ? "Catalog order - new customer created"
+              : "Catalog order - existing customer matched",
+          createdBy: null,
+          source: catalogOrderSource,
+        })
+        .returning({ id: schema.orders.id, number: schema.orders.number });
 
-  await db.insert(schema.orderStageHistory).values({
-    orgId,
-    orderId: order.id,
-    fromStageId: null,
-    toStageId: stage.id,
-    changedBy: null,
-    note: "Catalog order created",
+      await tx.insert(schema.orderItems).values(
+        lines.map((line) => ({
+          orgId,
+          orderId: createdOrder.id,
+          productId: line.productId,
+          name: line.name,
+          sku: line.sku,
+          quantity: line.quantity,
+          quantityInput: line.quantity,
+          unitOfMeasure: "each" as const,
+          packSize: 1,
+          unitPrice: toMoney(line.unitPrice),
+          discount: "0.00",
+          taxRate: "0.0000",
+          lineTotal: toMoney(line.lineTotal),
+        })),
+      );
+
+      await tx.insert(schema.orderStageHistory).values({
+        orgId,
+        orderId: createdOrder.id,
+        fromStageId: null,
+        toStageId: stage.id,
+        changedBy: null,
+        note: "Catalog order created",
+      });
+
+      return createdOrder;
+    });
   });
 
   return NextResponse.json(

@@ -57,7 +57,7 @@ export default function CartPage() {
           <ul className="divide-y">
             {items.map((i) => (
               <li key={i.productId} className="flex items-center gap-3 py-3">
-                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded bg-slate-100">
+                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded bg-muted">
                   {i.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={i.imageUrl} alt="" className="h-full w-full object-cover" />

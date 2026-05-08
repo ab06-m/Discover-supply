@@ -323,7 +323,7 @@ export function SellCart({
               aria-label="Search products"
               title="Search products"
             >
-              <Search className="h-7 w-7 transition-colors group-hover:text-sky-300" />
+              <Search className="h-7 w-7 transition-colors group-hover:text-sky-600 dark:group-hover:text-sky-300" />
             </button>
             <button
               type="button"
@@ -332,7 +332,7 @@ export function SellCart({
               aria-label={`Cart${itemCount > 0 ? `, ${itemCount} items` : ""}`}
               title="Cart"
             >
-              <ShoppingCart className="h-7 w-7 transition-colors group-hover:text-blue-300" />
+              <ShoppingCart className="h-7 w-7 transition-colors group-hover:text-blue-600 dark:group-hover:text-blue-300" />
               {itemCount > 0 && (
                 <span className="absolute right-2 top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-bold text-primary-foreground">
                   {itemCount}
@@ -347,8 +347,8 @@ export function SellCart({
               aria-label="Go to Order"
               title="Go to Order"
             >
-              <ClipboardList className="h-7 w-7 transition-colors group-hover:text-emerald-300" />
-              <ChevronRight className="-ml-1 h-5 w-5 transition-colors group-hover:text-emerald-300" />
+              <ClipboardList className="h-7 w-7 transition-colors group-hover:text-emerald-600 dark:group-hover:text-emerald-300" />
+              <ChevronRight className="-ml-1 h-5 w-5 transition-colors group-hover:text-emerald-600 dark:group-hover:text-emerald-300" />
             </button>
             <button
               type="button"
@@ -357,7 +357,7 @@ export function SellCart({
               aria-label="Scan barcode"
               title="Scan barcode"
             >
-              <Barcode className="h-7 w-7 transition-colors group-hover:text-violet-300" />
+              <Barcode className="h-7 w-7 transition-colors group-hover:text-violet-600 dark:group-hover:text-violet-300" />
             </button>
           </div>
 
@@ -386,7 +386,7 @@ export function SellCart({
                 aria-label="Scan barcode"
                 title="Scan barcode"
               >
-                <Barcode className="h-5 w-5 transition-colors group-hover:text-violet-300" />
+                <Barcode className="h-5 w-5 transition-colors group-hover:text-violet-600 dark:group-hover:text-violet-300" />
               </button>
             </div>
             {(searching || scanMessage) && (
@@ -831,13 +831,13 @@ function ProductTile({
           </span>
         )}
       </div>
-      <div className="bg-slate-700 p-3 text-white dark:bg-slate-800">
+      <div className="border-t bg-card p-3 text-card-foreground dark:bg-slate-800 dark:text-white">
         <div className="truncate text-sm font-bold" title={product.name}>
           {compactName(product.name)}
         </div>
         <div className="mt-1 flex items-center justify-between gap-2">
           <span className="text-sm font-semibold">{formatMoney(productPrice(product), currency)}</span>
-          <span className="truncate text-xs text-white/70">
+          <span className="truncate text-xs text-muted-foreground dark:text-white/70">
             {Number.isFinite(available) ? `${available} left` : "open"}
           </span>
         </div>

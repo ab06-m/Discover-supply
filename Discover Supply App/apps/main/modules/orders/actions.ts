@@ -6,7 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireActiveOrg } from "@/lib/auth";
 import { assertCan, type Role } from "@/lib/permissions";
-import { generateDocNumber } from "@/modules/inventory/lib/generate-number";
+import { generateDocNumber, withDocumentNumberRetry } from "@/modules/inventory/lib/generate-number";
 import { applyStageEffect } from "./lib/apply-stage-effect";
 import { getInitialStage, searchProductsForOrder } from "./queries";
 import { DEFAULT_ORDER_TEMPLATE_CONFIG } from "./schema";
@@ -71,12 +71,6 @@ export async function createOrder(input: z.input<typeof createOrderSchema>) {
   const initialStage = await getInitialStage(org.id);
   if (!initialStage) throw new Error("No order stages configured for this workspace.");
 
-  const number = await generateDocNumber({
-    table: schema.orders,
-    orgId: org.id,
-    prefix: "SO",
-  });
-
   const totals = computeTotals(parsed.items);
 
   let shippingAddress: unknown = null;
@@ -89,67 +83,80 @@ export async function createOrder(input: z.input<typeof createOrderSchema>) {
     shippingAddress = cust[0]?.shippingAddress ?? null;
   }
 
-  const [order] = await db
-    .insert(schema.orders)
-    .values({
+  const order = await withDocumentNumberRetry(async () => {
+    const number = await generateDocNumber({
+      table: schema.orders,
       orgId: org.id,
-      number,
-      customerId: parsed.customerId || null,
-      stageId: initialStage.id,
-      shippingAddress: shippingAddress as any,
-      subtotal: String(totals.subtotal),
-      taxTotal: String(totals.taxTotal),
-      discountTotal: String(totals.discountTotal),
-      total: String(totals.total),
-      notes: parsed.notes || null,
-      internalNotes: parsed.internalNotes || null,
-      createdBy: user.id,
-      source: "staff",
-    })
-    .returning({ id: schema.orders.id, number: schema.orders.number });
-
-  await db.insert(schema.orderItems).values(
-    totals.lines.map((l) => {
-      const packSize = l.unitOfMeasure === "box" ? l.packSize : 1;
-      const baseQty = l.quantity * packSize;
-      return {
-        orgId: org.id,
-        orderId: order.id,
-        productId: l.productId || null,
-        name: l.name,
-        sku: l.sku || null,
-        // `quantity` is the BASE-unit count; `quantityInput` preserves what
-        // the user typed so the line renders the same way next time.
-        quantity: baseQty,
-        quantityInput: l.quantity,
-        unitOfMeasure: l.unitOfMeasure,
-        packSize,
-        unitPrice: String(l.unitPrice),
-        discount: String(l.discount),
-        taxRate: String(l.taxRate),
-        lineTotal: String(l.lineTotal),
-      };
-    }),
-  );
-
-  await db.insert(schema.orderStageHistory).values({
-    orgId: org.id,
-    orderId: order.id,
-    fromStageId: null,
-    toStageId: initialStage.id,
-    changedBy: user.id,
-    note: "Order created",
-  });
-
-  // If the initial stage already has an effect (unusual but allowed), run it.
-  if (initialStage.effect !== "none") {
-    await applyStageEffect({
-      orgId: org.id,
-      orderId: order.id,
-      effect: initialStage.effect,
-      userId: user.id,
+      prefix: "SO",
     });
-  }
+
+    return db.transaction(async (tx) => {
+      const [createdOrder] = await tx
+        .insert(schema.orders)
+        .values({
+          orgId: org.id,
+          number,
+          customerId: parsed.customerId || null,
+          stageId: initialStage.id,
+          shippingAddress: shippingAddress as any,
+          subtotal: String(totals.subtotal),
+          taxTotal: String(totals.taxTotal),
+          discountTotal: String(totals.discountTotal),
+          total: String(totals.total),
+          notes: parsed.notes || null,
+          internalNotes: parsed.internalNotes || null,
+          createdBy: user.id,
+          source: "staff",
+        })
+        .returning({ id: schema.orders.id, number: schema.orders.number });
+
+      await tx.insert(schema.orderItems).values(
+        totals.lines.map((l) => {
+          const packSize = l.unitOfMeasure === "box" ? l.packSize : 1;
+          const baseQty = l.quantity * packSize;
+          return {
+            orgId: org.id,
+            orderId: createdOrder.id,
+            productId: l.productId || null,
+            name: l.name,
+            sku: l.sku || null,
+            // `quantity` is the BASE-unit count; `quantityInput` preserves what
+            // the user typed so the line renders the same way next time.
+            quantity: baseQty,
+            quantityInput: l.quantity,
+            unitOfMeasure: l.unitOfMeasure,
+            packSize,
+            unitPrice: String(l.unitPrice),
+            discount: String(l.discount),
+            taxRate: String(l.taxRate),
+            lineTotal: String(l.lineTotal),
+          };
+        }),
+      );
+
+      await tx.insert(schema.orderStageHistory).values({
+        orgId: org.id,
+        orderId: createdOrder.id,
+        fromStageId: null,
+        toStageId: initialStage.id,
+        changedBy: user.id,
+        note: "Order created",
+      });
+
+      // If the initial stage already has an effect (unusual but allowed), run it.
+      if (initialStage.effect !== "none") {
+        await applyStageEffect({
+          orgId: org.id,
+          orderId: createdOrder.id,
+          effect: initialStage.effect,
+          userId: user.id,
+          executor: tx,
+        });
+      }
+
+      return createdOrder;
+    });
+  });
 
   revalidatePath("/orders");
   return { id: order.id, number: order.number };
@@ -184,25 +191,28 @@ export async function transitionOrderStage(input: z.input<typeof transitionSchem
 
   if (fromStageId === toStage.id) return;
 
-  await db
-    .update(schema.orders)
-    .set({ stageId: toStage.id, updatedAt: new Date() })
-    .where(and(eq(schema.orders.orgId, org.id), eq(schema.orders.id, parsed.orderId)));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.orders)
+      .set({ stageId: toStage.id, updatedAt: new Date() })
+      .where(and(eq(schema.orders.orgId, org.id), eq(schema.orders.id, parsed.orderId)));
 
-  await db.insert(schema.orderStageHistory).values({
-    orgId: org.id,
-    orderId: parsed.orderId,
-    fromStageId,
-    toStageId: toStage.id,
-    changedBy: user.id,
-    note: parsed.note ?? null,
-  });
+    await tx.insert(schema.orderStageHistory).values({
+      orgId: org.id,
+      orderId: parsed.orderId,
+      fromStageId,
+      toStageId: toStage.id,
+      changedBy: user.id,
+      note: parsed.note ?? null,
+    });
 
-  await applyStageEffect({
-    orgId: org.id,
-    orderId: parsed.orderId,
-    effect: toStage.effect,
-    userId: user.id,
+    await applyStageEffect({
+      orgId: org.id,
+      orderId: parsed.orderId,
+      effect: toStage.effect,
+      userId: user.id,
+      executor: tx,
+    });
   });
 
   revalidatePath(`/orders/${parsed.orderId}`);

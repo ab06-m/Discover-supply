@@ -25,7 +25,7 @@ export default function PortalLoginPage() {
 
 function PortalLoginShell({ children }: { children?: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
       <Card className="w-full max-w-md">
         {children ?? (
           <>
@@ -105,11 +105,11 @@ function PortalLoginForm() {
           </div>
         </div>
         {sent ? (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+          <div className="rounded-md border border-success/30 bg-success/10 p-3 text-sm text-success">
             Check <strong>{email}</strong> for a sign-in link.
             <button
               type="button"
-              className="mt-2 text-emerald-700 underline"
+              className="mt-2 font-medium underline"
               onClick={() => {
                 setSent(false);
                 router.refresh();

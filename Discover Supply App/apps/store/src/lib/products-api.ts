@@ -25,15 +25,20 @@ export type StoreProductsResponse = {
   };
 };
 
-const DEFAULT_MAIN_APP_URL = "http://localhost:3000";
+export function getMainAppUrl() {
+  const configured = process.env.MAIN_APP_URL ?? process.env.NEXT_PUBLIC_MAIN_APP_URL;
+  if (!configured?.trim()) {
+    throw new Error("MAIN_APP_URL is not configured for the storefront.");
+  }
+  return configured;
+}
 
 export async function getStoreProducts(params: {
   page: number;
   limit: number;
   search?: string;
 }) {
-  const baseUrl = process.env.MAIN_APP_URL ?? process.env.NEXT_PUBLIC_MAIN_APP_URL ?? DEFAULT_MAIN_APP_URL;
-  const url = new URL("/api/store/products", baseUrl);
+  const url = new URL("/api/store/products", getMainAppUrl());
   url.searchParams.set("page", String(params.page));
   url.searchParams.set("limit", String(params.limit));
   if (params.search) url.searchParams.set("search", params.search);
