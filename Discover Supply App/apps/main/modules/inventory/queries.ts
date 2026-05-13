@@ -1,5 +1,5 @@
 import { db, schema } from "@/lib/db";
-import { and, count, desc, eq, gte, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, or, sql } from "drizzle-orm";
 
 export type ProductListRow = {
   id: string;
@@ -60,54 +60,57 @@ export async function listProducts(
       )
     : eq(schema.products.orgId, orgId);
 
-  const products = await db
-    .select({
-      id: schema.products.id,
-      name: schema.products.name,
-      kind: schema.products.kind,
-      brand: schema.products.brand,
-      vendor: schema.products.vendor,
-      sku: schema.products.sku,
-      barcode: schema.products.barcode,
-      unit: schema.products.unit,
-      packSize: schema.products.packSize,
-      price: schema.products.price,
-      cost: schema.products.cost,
-      onHand: schema.products.onHand,
-      committed: schema.products.committed,
-      available: sql<number>`${schema.products.onHand} - ${schema.products.committed}`,
-      lowStockThreshold: schema.products.lowStockThreshold,
-      trackStock: schema.products.trackStock,
-      isActive: schema.products.isActive,
-      imageUrl: schema.products.imageUrl,
-      imageGallery: schema.products.imageGallery,
-      returnable: schema.products.returnable,
-      showInOnlineStore: schema.products.showInOnlineStore,
-    })
-    .from(schema.products)
-    .where(where)
-    .orderBy(desc(schema.products.createdAt))
-    .limit(limit)
-    .offset(offset);
+  // Run product list and sold-last-30 aggregation in parallel to eliminate the
+  // sequential waterfall (products → extract IDs → stock movements).
+  // The stock movements query scans the full org partition for the date range
+  // which is fast due to the indexed columns, and we join in-memory by productId.
+  const [products, performanceRows] = await Promise.all([
+    db
+      .select({
+        id: schema.products.id,
+        name: schema.products.name,
+        kind: schema.products.kind,
+        brand: schema.products.brand,
+        vendor: schema.products.vendor,
+        sku: schema.products.sku,
+        barcode: schema.products.barcode,
+        unit: schema.products.unit,
+        packSize: schema.products.packSize,
+        price: schema.products.price,
+        cost: schema.products.cost,
+        onHand: schema.products.onHand,
+        committed: schema.products.committed,
+        available: sql<number>`${schema.products.onHand} - ${schema.products.committed}`,
+        lowStockThreshold: schema.products.lowStockThreshold,
+        trackStock: schema.products.trackStock,
+        isActive: schema.products.isActive,
+        imageUrl: schema.products.imageUrl,
+        imageGallery: schema.products.imageGallery,
+        returnable: schema.products.returnable,
+        showInOnlineStore: schema.products.showInOnlineStore,
+      })
+      .from(schema.products)
+      .where(where)
+      .orderBy(desc(schema.products.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({
+        productId: schema.stockMovements.productId,
+        soldLast30: sql<number>`coalesce(sum(abs(${schema.stockMovements.onHandDelta})), 0)::int`,
+      })
+      .from(schema.stockMovements)
+      .where(
+        and(
+          eq(schema.stockMovements.orgId, orgId),
+          eq(schema.stockMovements.kind, "consume"),
+          gte(schema.stockMovements.createdAt, thirtyDaysAgo),
+        ),
+      )
+      .groupBy(schema.stockMovements.productId),
+  ]);
 
-  const productIds = products.map((product) => product.id);
-  if (!productIds.length) return [] satisfies ProductListRow[];
-
-  const performanceRows = await db
-    .select({
-      productId: schema.stockMovements.productId,
-      soldLast30: sql<number>`coalesce(sum(abs(${schema.stockMovements.onHandDelta})), 0)::int`,
-    })
-    .from(schema.stockMovements)
-    .where(
-      and(
-        eq(schema.stockMovements.orgId, orgId),
-        eq(schema.stockMovements.kind, "consume"),
-        gte(schema.stockMovements.createdAt, thirtyDaysAgo),
-        inArray(schema.stockMovements.productId, productIds),
-      ),
-    )
-    .groupBy(schema.stockMovements.productId);
+  if (!products.length) return [] satisfies ProductListRow[];
 
   const soldByProductId = new Map(
     performanceRows.map((row) => [row.productId, row.soldLast30]),

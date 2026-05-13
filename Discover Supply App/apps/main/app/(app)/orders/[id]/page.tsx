@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FileText, Printer, Truck } from "lucide-react";
+import { FileText, Printer, ReceiptText, Truck } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
 import { getOrder, listStages } from "@/modules/orders/queries";
 import { StagePipeline } from "@/modules/orders/components/stage-pipeline";
@@ -10,7 +10,7 @@ import {
 import { listOrderTemplates } from "@/modules/orders/template-queries";
 import { createDispatch } from "@/modules/dispatch/actions";
 import { db, schema } from "@/lib/db";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { can, type Role } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
@@ -61,11 +61,23 @@ export default async function OrderDetailPage({
   const canInvoice = can(role as Role, "invoice.create");
   const canDispatch = can(role as Role, "dispatch.assign");
 
-  const existingDispatch = await db
-    .select({ id: schema.dispatches.id, status: schema.dispatches.status })
-    .from(schema.dispatches)
-    .where(and(eq(schema.dispatches.orgId, org.id), eq(schema.dispatches.orderId, id)))
-    .limit(1);
+  const [existingDispatch, invoices] = await Promise.all([
+    db
+      .select({ id: schema.dispatches.id, status: schema.dispatches.status })
+      .from(schema.dispatches)
+      .where(and(eq(schema.dispatches.orgId, org.id), eq(schema.dispatches.orderId, id)))
+      .limit(1),
+    db
+      .select({
+        id: schema.invoices.id,
+        number: schema.invoices.number,
+        status: schema.invoices.status,
+        createdAt: schema.invoices.createdAt,
+      })
+      .from(schema.invoices)
+      .where(and(eq(schema.invoices.orgId, org.id), eq(schema.invoices.orderId, id)))
+      .orderBy(desc(schema.invoices.createdAt)),
+  ]);
 
   async function scheduleDispatch() {
     "use server";
@@ -132,13 +144,19 @@ export default async function OrderDetailPage({
                   </Button>
                 </form>
               ))}
-            {canInvoice && (
+            {invoices.length > 0 ? (
+              <Button asChild variant="outline">
+                <Link href={`/invoices/${invoices[0].id}`}>
+                  <ReceiptText className="mr-2 h-4 w-4" /> View invoice
+                </Link>
+              </Button>
+            ) : canInvoice ? (
               <Button asChild>
                 <Link href={`/invoices/new?order=${order.id}`}>
                   <FileText className="mr-2 h-4 w-4" /> Create invoice
                 </Link>
               </Button>
-            )}
+            ) : null}
           </>
         }
       />
@@ -297,6 +315,9 @@ export default async function OrderDetailPage({
                           <div className="text-muted-foreground">
                             {new Date(h.createdAt).toLocaleString()}
                           </div>
+                          <div className="text-muted-foreground">
+                            by {historyActorLabel(h, order.source, customer?.name ?? null)}
+                          </div>
                           {h.note && <div className="text-muted-foreground">{h.note}</div>}
                         </div>
                       </li>
@@ -306,10 +327,49 @@ export default async function OrderDetailPage({
               </CardContent>
             </Card>
           )}
+
+          {invoices.length > 0 && (
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle>Invoices</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {invoices.map((invoice) => (
+                  <Link
+                    key={invoice.id}
+                    href={`/invoices/${invoice.id}`}
+                    className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 hover:bg-accent"
+                  >
+                    <span className="font-medium">{invoice.number}</span>
+                    <span className="text-xs capitalize text-muted-foreground">
+                      {invoice.status}
+                    </span>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+function historyActorLabel(
+  history: { actorName: string | null; actorEmail: string | null; changedBy: string | null },
+  source: string,
+  customerName: string | null,
+) {
+  if (history.actorName) return history.actorName;
+  if (history.actorEmail) return history.actorEmail;
+  if (source === "catalog_order") {
+    return customerName ? `${customerName} via online catalog` : "Online catalog";
+  }
+  if (source === "storefront") {
+    return customerName ? `${customerName} via customer portal` : "Customer portal";
+  }
+  if (!history.changedBy) return "System";
+  return "Unknown user";
 }
 
 function Row({

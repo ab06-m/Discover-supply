@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import {
   Package,
   AlertTriangle,
@@ -13,7 +14,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { StatCard } from "@/components/app/stat-card";
 import { formatMoney } from "@/lib/utils";
 
-export default async function DashboardPage() {
+async function DashboardStats() {
   const { org } = await requireActiveOrg();
 
   const [[productsAgg], [ordersAgg], [dispatchAgg]] = await Promise.all([
@@ -68,13 +69,38 @@ export default async function DashboardPage() {
   ];
 
   return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {stats.map((s) => (
+        <StatCard key={s.label} label={s.label} value={s.value} icon={s.icon} />
+      ))}
+    </div>
+  );
+}
+
+function StatsSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="rounded-lg border bg-card p-4 shadow-card">
+          <div className="animate-pulse space-y-3">
+            <div className="h-4 w-24 rounded bg-muted" />
+            <div className="h-7 w-16 rounded bg-muted" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default async function DashboardPage() {
+  const { org } = await requireActiveOrg();
+
+  return (
     <div className="space-y-6">
       <PageHeader title="Dashboard" subtitle={`Welcome to ${org.name}.`} />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {stats.map((s) => (
-          <StatCard key={s.label} label={s.label} value={s.value} icon={s.icon} />
-        ))}
-      </div>
+      <Suspense fallback={<StatsSkeleton />}>
+        <DashboardStats />
+      </Suspense>
     </div>
   );
 }

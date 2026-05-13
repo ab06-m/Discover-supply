@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowRightLeft,
   Barcode,
+  Check,
   ChevronRight,
   ClipboardList,
   ImageIcon,
@@ -14,16 +16,18 @@ import {
   ShoppingCart,
   Tag,
   Trash2,
+  UserPlus,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { cn, formatMoney } from "@/lib/utils";
 import { lookupByBarcode } from "@/modules/inventory/actions";
 import { BarcodeScanner } from "@/modules/inventory/components/barcode-scanner";
 import { createOrder, searchOrderProducts } from "@/modules/orders/actions";
+import { createCustomer } from "@/modules/customers/actions";
 
 type Category = {
   id: string;
@@ -64,6 +68,10 @@ type CartLine = {
   unitOfMeasure: "each" | "box";
   packSize: number;
   unitPrice: number;
+  /** The per-unit (each) price — used to recalculate when switching UoM */
+  basePrice: number;
+  /** The product's configured case-pack size (always ≥ 1) */
+  productPackSize: number;
   onHand: number;
   committed: number;
   trackStock: boolean;
@@ -132,6 +140,8 @@ export function SellCart({
   const [discountOpen, setDiscountOpen] = useState(false);
   const [discount, setDiscount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [localCustomers, setLocalCustomers] = useState<Customer[]>(customers);
 
   const productById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   const cartQuantityByProduct = useMemo(
@@ -166,7 +176,7 @@ export function SellCart({
   const tax = taxable * defaultTaxRate;
   const total = taxable + tax;
   const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
-  const selectedCustomer = customers.find((customer) => customer.id === customerId);
+  const selectedCustomer = localCustomers.find((customer) => customer.id === customerId);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   function toggleMobileSearch() {
@@ -202,8 +212,9 @@ export function SellCart({
     }
 
     const uom = defaultUomFor(product);
-    const packSize = Math.max(1, product.packSize ?? 1);
-    const unitPrice = uom === "box" ? productPrice(product) * packSize : productPrice(product);
+    const productPackSize = Math.max(1, product.packSize ?? 1);
+    const eachPrice = productPrice(product);
+    const unitPrice = uom === "box" ? eachPrice * productPackSize : eachPrice;
     setCart((lines) => [
       ...lines,
       {
@@ -214,8 +225,10 @@ export function SellCart({
         imageUrl: product.imageUrl,
         quantity: 1,
         unitOfMeasure: uom,
-        packSize: uom === "box" ? packSize : 1,
+        packSize: uom === "box" ? productPackSize : 1,
         unitPrice,
+        basePrice: eachPrice,
+        productPackSize,
         onHand: product.onHand,
         committed: product.committed,
         trackStock: product.trackStock !== false,
@@ -235,6 +248,28 @@ export function SellCart({
 
   function removeLine(key: string) {
     setCart((lines) => lines.filter((line) => line.key !== key));
+  }
+
+  function changeUom(key: string, nextUom: "each" | "box") {
+    setCart((lines) =>
+      lines.map((line) => {
+        if (line.key !== key || line.unitOfMeasure === nextUom) return line;
+        if (nextUom === "box") {
+          return {
+            ...line,
+            unitOfMeasure: "box" as const,
+            packSize: line.productPackSize,
+            unitPrice: line.basePrice * line.productPackSize,
+          };
+        }
+        return {
+          ...line,
+          unitOfMeasure: "each" as const,
+          packSize: 1,
+          unitPrice: line.basePrice,
+        };
+      }),
+    );
   }
 
   async function handleScan(code: string) {
@@ -398,8 +433,8 @@ export function SellCart({
 
           <div className="rounded-lg border bg-card p-2 shadow-card sm:p-3">
             <div className="grid grid-cols-[minmax(120px,1fr)_auto_92px] items-center gap-2 sm:grid-cols-[minmax(260px,1fr)_auto_auto] sm:gap-3">
-              <Select
-                className="h-9 truncate px-2 py-1.5 text-xs sm:h-10 sm:px-3 sm:py-2 sm:text-sm"
+              <select
+                className="h-9 truncate rounded-md border border-input bg-background px-2 py-1.5 text-xs sm:h-10 sm:px-3 sm:py-2 sm:text-sm"
                 value={categoryId}
                 onChange={(event) => setCategoryId(event.target.value)}
               >
@@ -409,7 +444,7 @@ export function SellCart({
                     {category.name}
                   </option>
                 ))}
-              </Select>
+              </select>
               <label className="inline-flex h-9 min-w-0 items-center gap-1.5 rounded-md border bg-background px-2 text-xs font-medium sm:h-10 sm:gap-2 sm:px-3 sm:text-sm">
                 <input
                   type="checkbox"
@@ -486,21 +521,18 @@ export function SellCart({
         </section>
 
         <aside id="sell-cart" className="hidden min-w-0 scroll-mt-24 sm:block lg:sticky lg:top-20 lg:self-start">
-          <CartPanel className="overflow-hidden rounded-lg border bg-card shadow-card">
+          <CartPanel className="rounded-lg border bg-card shadow-card">
             <div className="border-b p-4">
               <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-primary">
                 <Tag className="h-4 w-4" />
                 Select customer
               </div>
-              <Select value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
-                <option value="">Walk-in customer</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.storeCode ? `${customer.storeCode} - ` : ""}
-                    {customer.name}
-                  </option>
-                ))}
-              </Select>
+              <CustomerSelector
+                customers={localCustomers}
+                value={customerId}
+                onChange={setCustomerId}
+                onNewCustomer={() => setNewCustomerOpen(true)}
+              />
               {selectedCustomer?.paymentTerms && (
                 <p className="mt-2 text-xs text-muted-foreground">
                   Terms: {selectedCustomer.paymentTerms}
@@ -527,6 +559,7 @@ export function SellCart({
                       onDecrease={() => setQuantity(line.key, line.quantity - 1)}
                       onIncrease={() => setQuantity(line.key, line.quantity + 1)}
                       onQuantityChange={(quantity) => setQuantity(line.key, quantity)}
+                      onChangeUom={(uom) => changeUom(line.key, uom)}
                       onRemove={() => removeLine(line.key)}
                     />
                   ))}
@@ -625,21 +658,18 @@ export function SellCart({
 
       <Dialog open={cartOpen} onOpenChange={setCartOpen}>
         <DialogContent title="Cart" className="max-h-[92vh] max-w-[calc(100vw-2rem)] overflow-hidden p-0 sm:hidden">
-          <CartPanel className="flex max-h-[calc(92vh-49px)] flex-col bg-card">
+          <CartPanel className="flex max-h-[calc(92vh-49px)] flex-col overflow-hidden rounded-lg bg-card">
             <div className="shrink-0 border-b p-4">
               <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-primary">
                 <Tag className="h-4 w-4" />
                 Select customer
               </div>
-              <Select value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
-                <option value="">Walk-in customer</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.storeCode ? `${customer.storeCode} - ` : ""}
-                    {customer.name}
-                  </option>
-                ))}
-              </Select>
+              <CustomerSelector
+                customers={localCustomers}
+                value={customerId}
+                onChange={setCustomerId}
+                onNewCustomer={() => setNewCustomerOpen(true)}
+              />
               {selectedCustomer?.paymentTerms && (
                 <p className="mt-2 text-xs text-muted-foreground">
                   Terms: {selectedCustomer.paymentTerms}
@@ -666,6 +696,7 @@ export function SellCart({
                       onDecrease={() => setQuantity(line.key, line.quantity - 1)}
                       onIncrease={() => setQuantity(line.key, line.quantity + 1)}
                       onQuantityChange={(quantity) => setQuantity(line.key, quantity)}
+                      onChangeUom={(uom) => changeUom(line.key, uom)}
                       onRemove={() => removeLine(line.key)}
                     />
                   ))}
@@ -768,6 +799,16 @@ export function SellCart({
         onScan={handleScan}
         onClose={() => setScanOpen(false)}
       />
+
+      <NewCustomerDialog
+        open={newCustomerOpen}
+        onOpenChange={setNewCustomerOpen}
+        onCreated={(customer) => {
+          setLocalCustomers((prev) => [...prev, customer]);
+          setCustomerId(customer.id);
+          setNewCustomerOpen(false);
+        }}
+      />
     </div>
   );
 }
@@ -780,6 +821,258 @@ function CartPanel({
   className?: string;
 }) {
   return <div className={className}>{children}</div>;
+}
+
+// ─── Customer search combobox ─────────────────────────────────────────────────
+
+function CustomerSelector({
+  customers,
+  value,
+  onChange,
+  onNewCustomer,
+}: {
+  customers: Customer[];
+  value: string;
+  onChange: (id: string) => void;
+  onNewCustomer: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selected = customers.find((c) => c.id === value);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.storeCode ?? "").toLowerCase().includes(q),
+    );
+  }, [customers, search]);
+
+  // Close on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  function openDropdown() {
+    setOpen(true);
+    setSearch("");
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  function select(id: string) {
+    onChange(id);
+    setOpen(false);
+    setSearch("");
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={openDropdown}
+        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+      >
+        <span className={cn("truncate", !selected && "text-muted-foreground")}>
+          {selected
+            ? `${selected.storeCode ? selected.storeCode + " - " : ""}${selected.name}`
+            : "Search customer..."}
+        </span>
+        <Search className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-[200] mt-1 overflow-hidden rounded-md border bg-popover shadow-lg">
+          {/* Search input */}
+          <div className="border-b p-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                ref={inputRef}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Type name or store code..."
+                className="h-8 w-full rounded-sm border-0 bg-transparent pl-8 pr-2 text-sm outline-none placeholder:text-muted-foreground"
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setOpen(false);
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Options list */}
+          <div className="max-h-52 overflow-y-auto">
+            {/* Clear selection */}
+            {value && (
+              <button
+                type="button"
+                onClick={() => select("")}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-accent"
+              >
+                <X className="h-4 w-4" />
+                Clear selection
+              </button>
+            )}
+
+            {filtered.length === 0 ? (
+              <p className="px-3 py-4 text-center text-xs text-muted-foreground">No customers found</p>
+            ) : (
+              filtered.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => select(c.id)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
+                >
+                  <Check
+                    className={cn("h-4 w-4 shrink-0 text-primary", c.id === value ? "opacity-100" : "opacity-0")}
+                  />
+                  <span className="truncate">
+                    {c.storeCode ? <span className="mr-1 text-muted-foreground">{c.storeCode}</span> : null}
+                    {c.name}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+
+          {/* New customer */}
+          <div className="border-t p-2">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onNewCustomer();
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10"
+            >
+              <UserPlus className="h-4 w-4" />
+              New customer
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Quick new-customer dialog ────────────────────────────────────────────────
+
+const TERMS = [
+  { value: "cod", label: "Cash on delivery" },
+  { value: "net7", label: "Net 7" },
+  { value: "net15", label: "Net 15" },
+  { value: "net30", label: "Net 30" },
+  { value: "net60", label: "Net 60" },
+];
+
+function NewCustomerDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (customer: Customer) => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSubmitting(true);
+    setFormError(null);
+    const fd = new FormData(e.currentTarget);
+    try {
+      const res = await createCustomer(fd);
+      const name = (fd.get("name") as string) ?? "";
+      const storeCode = (fd.get("storeCode") as string) || null;
+      const paymentTerms = (fd.get("paymentTerms") as string) || "net30";
+      onCreated({ id: res.id, name, storeCode, paymentTerms });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Failed to save customer");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title="New customer" className="max-w-md">
+        <h2 className="text-lg font-semibold">New customer</h2>
+        <p className="text-sm text-muted-foreground">Add a customer and select them right away.</p>
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="nc-name">Customer name *</Label>
+            <Input id="nc-name" name="name" required placeholder="Acme Store" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="nc-storeCode">Store code</Label>
+              <Input id="nc-storeCode" name="storeCode" placeholder="S001" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nc-paymentTerms">Payment terms</Label>
+              <select
+                id="nc-paymentTerms"
+                name="paymentTerms"
+                defaultValue="net30"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {TERMS.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="nc-email">Email</Label>
+              <Input id="nc-email" name="email" type="email" placeholder="store@example.com" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nc-phone">Phone</Label>
+              <Input id="nc-phone" name="phone" placeholder="+1 555 000 0000" />
+            </div>
+          </div>
+          {/* Hidden required fields for the server action schema */}
+          <input type="hidden" name="bill_line1" value="" />
+          <input type="hidden" name="bill_city" value="" />
+          <input type="hidden" name="bill_state" value="" />
+          <input type="hidden" name="bill_postalCode" value="" />
+          <input type="hidden" name="bill_country" value="" />
+          <input type="hidden" name="ship_line1" value="" />
+          <input type="hidden" name="ship_city" value="" />
+          <input type="hidden" name="ship_state" value="" />
+          <input type="hidden" name="ship_postalCode" value="" />
+          <input type="hidden" name="ship_country" value="" />
+          {formError && <p className="text-sm text-destructive">{formError}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Saving..." : "Add customer"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function ProductTile({
@@ -902,6 +1195,7 @@ function CartLineItem({
   onDecrease,
   onIncrease,
   onQuantityChange,
+  onChangeUom,
   onRemove,
 }: {
   currency: string;
@@ -909,12 +1203,14 @@ function CartLineItem({
   onDecrease: () => void;
   onIncrease: () => void;
   onQuantityChange: (quantity: number) => void;
+  onChangeUom: (uom: "each" | "box") => void;
   onRemove: () => void;
 }) {
   const baseQuantity = line.quantity * line.packSize;
   const available = availableFor(line);
   const insufficient = Number.isFinite(available) && baseQuantity > available;
   const lineTotal = line.quantity * line.unitPrice;
+  const canSwitchUom = line.productPackSize > 1;
 
   return (
     <div className="grid grid-cols-[92px_1fr_auto] gap-3 rounded-lg border p-3">
@@ -940,9 +1236,28 @@ function CartLineItem({
         <div className="truncate text-sm font-semibold" title={line.name}>
           {line.name}
         </div>
-        <div className="mt-0.5 text-xs text-muted-foreground">
-          {formatMoney(line.unitPrice, currency)}
-          {line.unitOfMeasure === "box" && line.packSize > 1 ? ` - case of ${line.packSize}` : ""}
+        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span>
+            {formatMoney(line.unitPrice, currency)}
+            {line.unitOfMeasure === "box" && line.packSize > 1 ? ` / case of ${line.packSize}` : " / unit"}
+          </span>
+          {canSwitchUom && (
+            <button
+              type="button"
+              onClick={() => onChangeUom(line.unitOfMeasure === "each" ? "box" : "each")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition",
+                "hover:border-primary/50 hover:bg-primary/10 hover:text-primary",
+                line.unitOfMeasure === "box"
+                  ? "border-sky-400/50 bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                  : "border-input bg-background text-muted-foreground",
+              )}
+              title={line.unitOfMeasure === "each" ? "Switch to case" : "Switch to unit"}
+            >
+              <ArrowRightLeft className="h-3 w-3" />
+              {line.unitOfMeasure === "each" ? "Unit" : "Case"}
+            </button>
+          )}
         </div>
         {insufficient && (
           <div className="mt-0.5 text-xs font-medium text-destructive">

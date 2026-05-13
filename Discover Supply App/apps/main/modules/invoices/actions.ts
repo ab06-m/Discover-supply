@@ -7,8 +7,8 @@ import { randomBytes } from "crypto";
 import { db, schema } from "@/lib/db";
 import { requireActiveOrg } from "@/lib/auth";
 import { assertCan, type Role } from "@/lib/permissions";
-import { generateDocNumber, withDocumentNumberRetry } from "@/modules/inventory/lib/generate-number";
 import { DEFAULT_INVOICE_TEMPLATE_CONFIG } from "./schema";
+import { createInvoiceForOrder } from "./lib/create-from-order";
 
 const createFromOrderSchema = z.object({
   orderId: z.string().uuid(),
@@ -23,79 +23,17 @@ export async function createInvoiceFromOrder(input: z.input<typeof createFromOrd
   assertCan(role as Role, "invoice.create");
   const parsed = createFromOrderSchema.parse(input);
 
-  const order = await db
-    .select()
-    .from(schema.orders)
-    .where(and(eq(schema.orders.orgId, org.id), eq(schema.orders.id, parsed.orderId)))
-    .limit(1);
-  if (!order.length) throw new Error("Order not found");
-  const o = order[0];
-
-  const items = await db
-    .select()
-    .from(schema.orderItems)
-    .where(eq(schema.orderItems.orderId, o.id));
-
-  let customerSnapshot: unknown = null;
-  if (o.customerId) {
-    const c = await db
-      .select()
-      .from(schema.customers)
-      .where(and(eq(schema.customers.orgId, org.id), eq(schema.customers.id, o.customerId)))
-      .limit(1);
-    customerSnapshot = c[0] ?? null;
-  }
-
-  // Pick template: explicit → org default → null
-  let templateId = parsed.templateId || null;
-  if (!templateId) {
-    const defaults = await db
-      .select({ id: schema.invoiceTemplates.id })
-      .from(schema.invoiceTemplates)
-      .where(
-        and(
-          eq(schema.invoiceTemplates.orgId, org.id),
-          eq(schema.invoiceTemplates.isDefault, true),
-        ),
-      )
-      .limit(1);
-    templateId = defaults[0]?.id ?? null;
-  }
-
-  const invoice = await withDocumentNumberRetry(async () => {
-    const number = await generateDocNumber({
-      table: schema.invoices,
-      orgId: org.id,
-      prefix: "INV",
-    });
-
-    const [createdInvoice] = await db
-      .insert(schema.invoices)
-      .values({
-        orgId: org.id,
-        orderId: o.id,
-        customerId: o.customerId,
-        templateId,
-        number,
-        status: "draft",
-        dueDate: parsed.dueDate ? new Date(parsed.dueDate) : null,
-        subtotal: o.subtotal,
-        taxTotal: o.taxTotal,
-        discountTotal: o.discountTotal,
-        total: o.total,
-        amountPaid: o.amountPaid,
-        customerSnapshot: customerSnapshot as any,
-        itemsSnapshot: items as any,
-        notes: parsed.notes || null,
-        terms: parsed.terms || null,
-      })
-      .returning({ id: schema.invoices.id, number: schema.invoices.number });
-
-    return createdInvoice;
+  const invoice = await createInvoiceForOrder({
+    orgId: org.id,
+    orderId: parsed.orderId,
+    templateId: parsed.templateId || null,
+    dueDate: parsed.dueDate ? new Date(parsed.dueDate) : null,
+    notes: parsed.notes || null,
+    terms: parsed.terms || null,
   });
 
   revalidatePath("/invoices");
-  revalidatePath(`/orders/${o.id}`);
+  revalidatePath(`/orders/${parsed.orderId}`);
   return { id: invoice.id, number: invoice.number };
 }
 

@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/app/page-header";
 import { EmptyState } from "@/components/app/empty-state";
 import { OrdersList, type OrdersListRow } from "@/modules/orders/components/orders-list";
+import { can, type Role } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function OrdersPage({
 }: {
   searchParams: Promise<{ q?: string; stage?: string }>;
 }) {
-  const { org } = await requireActiveOrg();
+  const { org, role } = await requireActiveOrg();
   const { q, stage } = await searchParams;
   const [rows, stages] = await Promise.all([
     listOrders(org.id, { search: q, stageId: stage }),
@@ -85,6 +86,8 @@ export default async function OrdersPage({
             }),
           )}
           currency={org.currency}
+          stages={stages}
+          canAdvance={can(role as Role, "order.advance_stage")}
         />
       )}
     </div>

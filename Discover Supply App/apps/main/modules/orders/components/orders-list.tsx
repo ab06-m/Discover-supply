@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowDown,
   ArrowUp,
@@ -16,7 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Select } from "@/components/ui/select";
 import { cn, formatMoney } from "@/lib/utils";
+import { transitionOrderStage } from "../actions";
+import type { OrderStage } from "../schema";
 
 export type OrdersListRow = {
   id: string;
@@ -25,6 +29,7 @@ export type OrdersListRow = {
   amountPaid: string | number;
   createdAt: string;
   source: string | null;
+  stageId: string | null;
   stageName: string | null;
   stageColor: string | null;
   customerId: string | null;
@@ -72,6 +77,8 @@ type Column = {
   align?: "right";
   render: (order: OrdersListRow) => React.ReactNode;
 };
+
+type StageOption = Pick<OrderStage, "id" | "name" | "color" | "effect" | "isTerminal">;
 
 const storageKey = "discover-supply.orders.columns.v4";
 const headerColumnIds = new Set<ColumnId>(["number", "stage", "date"]);
@@ -126,6 +133,33 @@ function paymentStatus(order: OrdersListRow) {
   if (total <= 0 || paid <= 0) return "Unpaid";
   if (paid >= total) return "Paid";
   return "Partial";
+}
+
+function colorWithAlpha(color: string, alpha: number) {
+  const hex = color.trim().replace("#", "");
+  const opacity = Math.round(alpha * 100);
+
+  if (/^[\da-f]{3}$/i.test(hex)) {
+    const [r, g, b] = hex.split("").map((part) => parseInt(`${part}${part}`, 16));
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  if (/^[\da-f]{6}$/i.test(hex)) {
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  return `color-mix(in srgb, ${color} ${opacity}%, transparent)`;
+}
+
+function stageColorStyles(color: string): React.CSSProperties {
+  return {
+    color,
+    borderColor: colorWithAlpha(color, 0.35),
+    backgroundColor: colorWithAlpha(color, 0.12),
+  };
 }
 
 function formatAddress(address: Address | null) {
@@ -183,7 +217,17 @@ function sanitizeVisibleColumns(value: unknown): Set<ColumnId> {
   return new Set(valid);
 }
 
-export function OrdersList({ rows, currency }: { rows: OrdersListRow[]; currency: string }) {
+export function OrdersList({
+  rows,
+  currency,
+  stages,
+  canAdvance,
+}: {
+  rows: OrdersListRow[];
+  currency: string;
+  stages: StageOption[];
+  canAdvance: boolean;
+}) {
   const [selectedCustomer, setSelectedCustomer] = React.useState<OrdersListRow | null>(null);
 
   const columns = React.useMemo<Column[]>(
@@ -224,12 +268,7 @@ export function OrdersList({ rows, currency }: { rows: OrdersListRow[]; currency
         label: "Stage",
         render: (order) =>
           order.stageName ? (
-            <span
-              className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
-              style={{ backgroundColor: order.stageColor ?? "#64748b" }}
-            >
-              {order.stageName}
-            </span>
+            <OrderStageControl order={order} stages={stages} canAdvance={canAdvance} />
           ) : (
             <span className="text-muted-foreground">-</span>
           ),
@@ -296,7 +335,7 @@ export function OrdersList({ rows, currency }: { rows: OrdersListRow[]; currency
         ),
       },
     ],
-    [currency],
+    [canAdvance, currency, stages],
   );
 
   const [columnOrder, setColumnOrder] = React.useState<ColumnId[]>(allColumnIds);
@@ -476,6 +515,95 @@ export function OrdersList({ rows, currency }: { rows: OrdersListRow[]; currency
   );
 }
 
+function OrderStageControl({
+  order,
+  stages,
+  canAdvance,
+}: {
+  order: OrdersListRow;
+  stages: StageOption[];
+  canAdvance: boolean;
+}) {
+  const router = useRouter();
+  const [value, setValue] = React.useState(order.stageId ?? "");
+  const [isPending, startTransition] = React.useTransition();
+  const color = order.stageColor ?? "#64748b";
+
+  React.useEffect(() => {
+    setValue(order.stageId ?? "");
+  }, [order.stageId]);
+
+  if (!canAdvance) {
+    return (
+      <span
+        className="inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+        style={stageColorStyles(color)}
+      >
+        {order.stageName}
+      </span>
+    );
+  }
+
+  function handleChange(event: React.ChangeEvent<HTMLSelectElement>) {
+    const toStageId = event.target.value;
+    const previous = value;
+    const target = stages.find((stage) => stage.id === toStageId);
+    if (!target || toStageId === previous) return;
+
+    if (target.effect === "consume" || target.effect === "release" || target.isTerminal) {
+      if (!confirm(`Move to "${target.name}"? This will ${describeStageEffect(target.effect)}.`)) {
+        setValue(previous);
+        return;
+      }
+    }
+
+    setValue(toStageId);
+    startTransition(async () => {
+      try {
+        await transitionOrderStage({ orderId: order.id, toStageId });
+        router.refresh();
+      } catch (error) {
+        setValue(previous);
+        alert(error instanceof Error ? error.message : "Failed to update stage");
+      }
+    });
+  }
+
+  return (
+    <span className="inline-flex min-w-32">
+      <Select
+        aria-label={`Change stage for ${order.number}`}
+        value={value}
+        onChange={handleChange}
+        disabled={isPending}
+        className="h-8 min-w-32 rounded-full py-1 pl-4 pr-8 text-xs font-semibold"
+        style={stageColorStyles(color)}
+      >
+        {stages.map((stage) => (
+          <option key={stage.id} value={stage.id}>
+            {stage.name}
+          </option>
+        ))}
+      </Select>
+    </span>
+  );
+}
+
+function describeStageEffect(effect: OrderStage["effect"]) {
+  switch (effect) {
+    case "commit":
+      return "reserve stock for this order";
+    case "release":
+      return "release any reserved stock back to available";
+    case "consume":
+      return "remove items from inventory";
+    case "mark_paid":
+      return "mark the order as fully paid";
+    default:
+      return "update the order";
+  }
+}
+
 function DailySalesCard({
   date,
   orderCount,
@@ -597,9 +725,13 @@ function InfoField({
 function OrderCard({ columns, order }: { columns: Column[]; order: OrdersListRow }) {
   const headerColumns = columns.filter((column) => headerColumnIds.has(column.id));
   const detailColumns = columns.filter((column) => !headerColumnIds.has(column.id));
+  const color = order.stageColor ?? "#cbd5e1";
 
   return (
-    <Card className="overflow-hidden">
+    <Card
+      className="overflow-hidden border-l-4"
+      style={{ borderLeftColor: color }}
+    >
       {headerColumns.length > 0 ? (
         <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-3 border-b bg-muted/30 px-3 py-2.5 md:grid-cols-[minmax(16rem,1fr)_8rem_8rem] md:px-4">
           {headerColumns.map((column) => (

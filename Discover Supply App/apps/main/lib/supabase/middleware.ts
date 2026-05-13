@@ -17,6 +17,28 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
+  const { pathname } = request.nextUrl;
+
+  // Skip auth check entirely for public routes — avoids the Supabase network
+  // round-trip on pages that don't need a session.
+  const isPublic =
+    pathname === "/" ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/portal") ||
+    pathname.startsWith("/shop") ||
+    pathname.startsWith("/catalog") ||
+    pathname.startsWith("/i/") ||
+    pathname.startsWith("/api/catalog") ||
+    pathname.startsWith("/api/store") ||
+    pathname.startsWith("/api/public") ||
+    pathname.startsWith("/_next");
+
+  if (isPublic) {
+    return response;
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -36,17 +58,10 @@ export async function updateSession(request: NextRequest) {
 
   const { data: claimsData } = await supabase.auth.getClaims();
   const hasUser = Boolean(claimsData?.claims.sub);
-  const { pathname } = request.nextUrl;
 
   const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/signup");
-  const isPublic =
-    isAuthRoute ||
-    pathname.startsWith("/auth") ||
-    pathname === "/" ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/public");
 
-  if (!hasUser && !isPublic) {
+  if (!hasUser && !isAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);

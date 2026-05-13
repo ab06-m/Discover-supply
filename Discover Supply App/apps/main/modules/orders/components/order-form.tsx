@@ -558,7 +558,7 @@ export function OrderForm({
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-baseline gap-1">
+                                <div className="flex w-full items-baseline gap-1">
                                   <Input
                                     className="min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
                                     value={l.name}
@@ -567,7 +567,7 @@ export function OrderForm({
                                   />
                                   {nameSuffix && (
                                     <span
-                                      className="text-xs font-medium text-muted-foreground"
+                                      className="shrink-0 text-xs font-medium text-muted-foreground"
                                       title={`Case of ${l.packSize}`}
                                     >
                                       {nameSuffix}

@@ -113,8 +113,12 @@ export async function getOrder(orgId: string, id: string) {
       note: schema.orderStageHistory.note,
       fromStageId: schema.orderStageHistory.fromStageId,
       toStageId: schema.orderStageHistory.toStageId,
+      changedBy: schema.orderStageHistory.changedBy,
+      actorName: schema.profiles.fullName,
+      actorEmail: schema.profiles.email,
     })
     .from(schema.orderStageHistory)
+    .leftJoin(schema.profiles, eq(schema.profiles.id, schema.orderStageHistory.changedBy))
     .where(eq(schema.orderStageHistory.orderId, id))
     .orderBy(desc(schema.orderStageHistory.createdAt));
 

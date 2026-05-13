@@ -7,6 +7,7 @@ import { db, schema } from "@/lib/db";
 import { requireActiveOrg } from "@/lib/auth";
 import { assertCan, type Role } from "@/lib/permissions";
 import { generateDocNumber, withDocumentNumberRetry } from "@/modules/inventory/lib/generate-number";
+import { createInvoiceForOrder } from "@/modules/invoices/lib/create-from-order";
 import { applyStageEffect } from "./lib/apply-stage-effect";
 import { getInitialStage, searchProductsForOrder } from "./queries";
 import { DEFAULT_ORDER_TEMPLATE_CONFIG } from "./schema";
@@ -213,10 +214,19 @@ export async function transitionOrderStage(input: z.input<typeof transitionSchem
       userId: user.id,
       executor: tx,
     });
+
+    if (toStage.slug === "confirmed") {
+      await createInvoiceForOrder({
+        orgId: org.id,
+        orderId: parsed.orderId,
+        executor: tx,
+      });
+    }
   });
 
   revalidatePath(`/orders/${parsed.orderId}`);
   revalidatePath("/orders");
+  revalidatePath("/invoices");
 }
 
 const editItemsSchema = z.object({

@@ -8,7 +8,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: [
-          "DM Sans",
+          "var(--font-dm-sans)",
           "ui-sans-serif",
           "system-ui",
           "-apple-system",

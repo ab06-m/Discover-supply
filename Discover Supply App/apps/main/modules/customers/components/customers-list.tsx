@@ -8,6 +8,7 @@ import {
   Columns3,
   EyeOff,
   GripVertical,
+  Mail,
   MapPin,
   MessageSquare,
   Pencil,
@@ -519,39 +520,64 @@ export function CustomersList({ rows, currency }: { rows: CustomerListRow[]; cur
 }
 
 function CustomerDesktopTable({ fields, rows }: { fields: Field[]; rows: CustomerListRow[] }) {
+  const hasName = fields.some((field) => field.id === "name");
+  const showPhone = hasName && fields.some((field) => field.id === "phone");
+  const showEmail = hasName && fields.some((field) => field.id === "email");
+  const tableFields = hasName
+    ? fields.filter((field) => field.id !== "phone" && field.id !== "email")
+    : fields;
+
   return (
     <Card className="hidden overflow-hidden shadow-card lg:block">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[64rem] text-sm">
+        <table className="w-full min-w-[72rem] table-fixed text-sm">
+          <colgroup>
+            {tableFields.map((field) => (
+              <col key={field.id} className={desktopColumnClass(field.id)} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="border-b">
-              {fields.map((field) => (
+              {tableFields.map((field) => (
                 <th
                   key={field.id}
                   className={cn(
-                    "h-12 whitespace-nowrap px-5 text-left font-semibold text-muted-foreground",
+                    "h-12 whitespace-nowrap px-5 text-left text-xs font-semibold uppercase text-muted-foreground",
                     field.align === "right" && "text-right",
                     field.align === "center" && "text-center",
                   )}
                 >
-                  {field.label}
+                  {field.id === "name" ? "Customer" : field.label}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((customer) => (
-              <tr key={customer.id} className="border-b last:border-b-0 hover:bg-muted/30">
-                {fields.map((field) => (
+              <tr
+                key={customer.id}
+                className="border-b transition-colors last:border-b-0 hover:bg-muted/25"
+              >
+                {tableFields.map((field) => (
                   <td
                     key={field.id}
                     className={cn(
-                      "max-w-72 px-5 py-4 align-middle",
+                      "px-5 py-4 align-middle",
                       field.align === "right" && "text-right",
                       field.align === "center" && "text-center",
                     )}
                   >
-                    {field.render(customer)}
+                    {field.id === "name" ? (
+                      <CustomerIdentityCell
+                        customer={customer}
+                        showPhone={showPhone}
+                        showEmail={showEmail}
+                      />
+                    ) : isMetricField(field.id) ? (
+                      <MetricCell field={field} customer={customer} />
+                    ) : (
+                      <div className="min-w-0 [overflow-wrap:anywhere]">{field.render(customer)}</div>
+                    )}
                   </td>
                 ))}
               </tr>
@@ -560,6 +586,148 @@ function CustomerDesktopTable({ fields, rows }: { fields: Field[]; rows: Custome
         </table>
       </div>
     </Card>
+  );
+}
+
+function desktopColumnClass(id: FieldId) {
+  switch (id) {
+    case "name":
+      return "w-[28rem]";
+    case "accountBalance":
+    case "totalOrders":
+    case "totalSpent":
+    case "lastOrder":
+    case "openOrders":
+      return "w-36";
+    case "notes":
+    case "map":
+    case "status":
+      return "w-24";
+    case "actions":
+      return "w-28";
+    default:
+      return "w-48";
+  }
+}
+
+function isMetricField(id: FieldId) {
+  return (
+    id === "accountBalance" ||
+    id === "totalOrders" ||
+    id === "totalSpent" ||
+    id === "lastOrder" ||
+    id === "openOrders"
+  );
+}
+
+function CustomerIdentityCell({
+  customer,
+  showPhone,
+  showEmail,
+}: {
+  customer: CustomerListRow;
+  showPhone: boolean;
+  showEmail: boolean;
+}) {
+  const phoneHref = whatsAppUrl(customer.phone);
+  const contactItems = [
+    showPhone
+      ? {
+          key: "phone",
+          icon: Phone,
+          href: phoneHref,
+          label: textValue(customer.phone),
+          tone: customer.phone ? "text-emerald-600" : "text-muted-foreground",
+          external: true,
+        }
+      : null,
+    showEmail
+      ? {
+          key: "email",
+          icon: Mail,
+          href: customer.email ? `mailto:${customer.email}` : null,
+          label: textValue(customer.email),
+          tone: customer.email ? "text-foreground" : "text-muted-foreground",
+          external: false,
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    key: string;
+    icon: React.ComponentType<{ className?: string }>;
+    href: string | null;
+    label: string;
+    tone: string;
+    external: boolean;
+  }>;
+
+  return (
+    <div className="flex min-w-0 items-center gap-4">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-600 text-sm font-semibold text-white shadow-sm ring-1 ring-white/10">
+        {initials(customer.name) || "?"}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <Link
+            href={`/customers/${customer.id}`}
+            className="truncate text-base font-semibold leading-snug hover:underline"
+          >
+            {customer.name}
+          </Link>
+          {customer.storeCode ? (
+            <span className="shrink-0 rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {customer.storeCode}
+            </span>
+          ) : null}
+        </div>
+        {contactItems.length ? (
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+            {contactItems.map((item) => {
+              const Icon = item.icon;
+              const content = (
+                <>
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </>
+              );
+              const className = cn(
+                "inline-flex max-w-[13rem] items-center gap-1.5 rounded-full border bg-background/70 px-2.5 py-1 text-xs font-medium",
+                item.tone,
+              );
+
+              return item.href ? (
+                <a
+                  key={item.key}
+                  href={item.href}
+                  target={item.external ? "_blank" : undefined}
+                  rel={item.external ? "noreferrer" : undefined}
+                  className={cn(className, "hover:bg-accent hover:underline")}
+                >
+                  {content}
+                </a>
+              ) : (
+                <span key={item.key} className={className}>
+                  {content}
+                </span>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MetricCell({ field, customer }: { field: Field; customer: CustomerListRow }) {
+  return (
+    <div
+      className={cn(
+        "inline-flex min-w-24 flex-col rounded-md border bg-muted/20 px-3 py-2 text-left",
+        field.align === "right" && "items-end text-right",
+      )}
+    >
+      <span className="text-[11px] font-medium uppercase text-muted-foreground">{field.label}</span>
+      <span className="mt-0.5 text-sm font-semibold text-foreground">{field.render(customer)}</span>
+    </div>
   );
 }
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
+  BookOpen,
   FileText,
   LayoutDashboard,
   Menu,
@@ -23,11 +24,24 @@ import {
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/app/theme-provider";
 
-type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavItem = {
+  href: string;
+  label: string;
+  compactLabel?: string;
+  icon: LucideIcon;
+  newTab?: boolean;
+};
 
 const nav: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/sell", label: "Sell", icon: ShoppingBasket },
+  {
+    href: "/catalog",
+    label: "User catalog",
+    compactLabel: "Catalog",
+    icon: BookOpen,
+    newTab: true,
+  },
   { href: "/orders", label: "Orders", icon: ShoppingCart },
   { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/customers", label: "Customers", icon: Store },
@@ -55,7 +69,9 @@ function CompactNavLinks({
           <Link
             key={item.href}
             href={item.href}
-            prefetch={false}
+            prefetch={true}
+            target={item.newTab ? "_blank" : undefined}
+            rel={item.newTab ? "noreferrer" : undefined}
             onPointerEnter={() => router.prefetch(item.href)}
             onFocus={() => router.prefetch(item.href)}
             onClick={onNavigate}
@@ -67,7 +83,7 @@ function CompactNavLinks({
             )}
           >
             <Icon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{item.label}</span>
+            <span className="truncate">{item.compactLabel ?? item.label}</span>
           </Link>
         );
       })}
@@ -92,7 +108,9 @@ function ExpandedNavLinks({
           <Link
             key={item.href}
             href={item.href}
-            prefetch={false}
+            prefetch={true}
+            target={item.newTab ? "_blank" : undefined}
+            rel={item.newTab ? "noreferrer" : undefined}
             onPointerEnter={() => router.prefetch(item.href)}
             onFocus={() => router.prefetch(item.href)}
             onClick={onNavigate}
