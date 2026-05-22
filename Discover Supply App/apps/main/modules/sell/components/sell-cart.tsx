@@ -18,6 +18,7 @@ import {
   Trash2,
   UserPlus,
   X,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -28,6 +29,8 @@ import { lookupByBarcode } from "@/modules/inventory/actions";
 import { BarcodeScanner } from "@/modules/inventory/components/barcode-scanner";
 import { createOrder, searchOrderProducts } from "@/modules/orders/actions";
 import { createCustomer } from "@/modules/customers/actions";
+import { fetchSellProductsAction } from "@/modules/sell/actions";
+
 
 type Category = {
   id: string;
@@ -127,15 +130,21 @@ export function SellCart({
   const [isPending, startTransition] = useTransition();
   const [customerId, setCustomerId] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [query, setQuery] = useState("");
+  const [searchVal, setSearchVal] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [onlyAvailable, setOnlyAvailable] = useState(true);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [scanOpen, setScanOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
-  const [remoteResults, setRemoteResults] = useState<Product[]>([]);
-  const [searching, setSearching] = useState(false);
+
+  const [displayedProducts, setDisplayedProducts] = useState<Product[]>(products);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(products.length >= 180);
+  const [offset, setOffset] = useState(products.length);
+  const LIMIT = 40;
+
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discountOpen, setDiscountOpen] = useState(false);
   const [discount, setDiscount] = useState(0);
@@ -143,29 +152,83 @@ export function SellCart({
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
   const [localCustomers, setLocalCustomers] = useState<Customer[]>(customers);
 
-  const productById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
+  const productById = useMemo(() => {
+    const map = new Map<string, Product>();
+    products.forEach((p) => map.set(p.id, p));
+    displayedProducts.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [products, displayedProducts]);
+
   const cartQuantityByProduct = useMemo(
     () => new Map(cart.map((line) => [line.productId, line.quantity])),
     [cart],
   );
 
-  const filteredProducts = useMemo(() => {
-    const normalizedRemote = remoteResults.map((product) => productById.get(product.id) ?? product);
-    const source = query.trim().length >= 2 && remoteResults.length > 0 ? normalizedRemote : products;
-    const q = query.trim().toLowerCase();
+  const isFirstMount = useRef(true);
 
-    return source.filter((product) => {
-      const available = availableFor(product);
-      const matchesCategory = !categoryId || product.categoryId === categoryId;
-      const matchesStock = !onlyAvailable || !Number.isFinite(available) || available > 0;
-      const matchesQuery =
-        q.length < 2 ||
-        product.name.toLowerCase().includes(q) ||
-        product.sku?.toLowerCase().includes(q) ||
-        product.barcode?.toLowerCase().includes(q);
-      return matchesCategory && matchesStock && matchesQuery;
-    });
-  }, [categoryId, onlyAvailable, productById, products, query, remoteResults]);
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchVal);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchVal]);
+
+  // Load page 1 on filter changes
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+
+    async function loadFilteredProducts() {
+      setIsLoading(true);
+      try {
+        const hits = await fetchSellProductsAction({
+          query: debouncedQuery,
+          categoryId,
+          onlyAvailable,
+          limit: LIMIT,
+          offset: 0,
+        });
+        setDisplayedProducts(hits as Product[]);
+        setOffset(hits.length);
+        setHasMore(hits.length >= LIMIT);
+      } catch (err) {
+        console.error("Failed to load products", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadFilteredProducts();
+  }, [debouncedQuery, categoryId, onlyAvailable]);
+
+  // Load more handler
+  async function loadMore() {
+    if (isLoading || !hasMore) return;
+    setIsLoading(true);
+    try {
+      const hits = await fetchSellProductsAction({
+        query: debouncedQuery,
+        categoryId,
+        onlyAvailable,
+        limit: LIMIT,
+        offset,
+      });
+      setDisplayedProducts((prev) => {
+        const existingIds = new Set(prev.map((p) => p.id));
+        const uniqueHits = (hits as Product[]).filter((h) => !existingIds.has(h.id));
+        return [...prev, ...uniqueHits];
+      });
+      setOffset((prev) => prev + hits.length);
+      setHasMore(hits.length >= LIMIT);
+    } catch (err) {
+      console.error("Failed to load more products", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   const subtotal = useMemo(
     () => cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
@@ -187,22 +250,6 @@ export function SellCart({
     });
   }
 
-  async function runSearch(value: string) {
-    setQuery(value);
-    if (value.trim().length < 2) {
-      setRemoteResults([]);
-      setSearching(false);
-      return;
-    }
-
-    setSearching(true);
-    try {
-      const hits = await searchOrderProducts(value.trim());
-      setRemoteResults(hits as Product[]);
-    } finally {
-      setSearching(false);
-    }
-  }
 
   function addProduct(product: Product) {
     const existing = cart.find((line) => line.productId === product.id);
@@ -329,20 +376,6 @@ export function SellCart({
             Fast staff cart for walk-in sales, phone orders, and back-office checkout.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => document.getElementById("sell-cart")?.scrollIntoView({ behavior: "smooth" })}
-          >
-            <ShoppingCart className="mr-2 h-4 w-4" />
-            Cart{itemCount > 0 ? ` (${itemCount})` : ""}
-          </Button>
-          <Button type="button" onClick={submitSale} disabled={isPending || cart.length === 0}>
-            {isPending ? "Saving..." : "Go to Order"}
-            <ChevronRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
       </div>
 
       <div className="grid gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
@@ -402,31 +435,59 @@ export function SellCart({
               mobileSearchOpen ? "block" : "hidden sm:block",
             )}
           >
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                ref={searchInputRef}
-                className="h-12 pl-10 pr-12 text-base"
-                placeholder="Name, SKU, or barcode"
-                value={query}
-                onChange={(event) => runSearch(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") setMobileSearchOpen(false);
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setScanOpen(true)}
-                className="group absolute right-2 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md border bg-background text-muted-foreground transition hover:border-violet-400/50 hover:bg-violet-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
-                aria-label="Scan barcode"
-                title="Scan barcode"
-              >
-                <Barcode className="h-5 w-5 transition-colors group-hover:text-violet-600 dark:group-hover:text-violet-300" />
-              </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  ref={searchInputRef}
+                  className="h-12 pl-10 pr-12 text-base"
+                  placeholder="Name, SKU, or barcode"
+                  value={searchVal}
+                  onChange={(event) => setSearchVal(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") setMobileSearchOpen(false);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setScanOpen(true)}
+                  className="group absolute right-2 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md border bg-background text-muted-foreground transition hover:border-violet-400/50 hover:bg-violet-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                  aria-label="Scan barcode"
+                  title="Scan barcode"
+                >
+                  <Barcode className="h-5 w-5 transition-colors group-hover:text-violet-600 dark:group-hover:text-violet-300" />
+                </button>
+              </div>
+              <div className="hidden items-center gap-2 sm:flex">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 border-input bg-background"
+                  onClick={() => {
+                    if (window.innerWidth < 1024) {
+                      setCartOpen(true);
+                    } else {
+                      document.getElementById("sell-cart")?.scrollIntoView({ behavior: "smooth" });
+                    }
+                  }}
+                >
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  Cart{itemCount > 0 ? ` (${itemCount})` : ""}
+                </Button>
+                <Button
+                  type="button"
+                  className="h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                  onClick={submitSale}
+                  disabled={isPending || cart.length === 0}
+                >
+                  {isPending ? "Saving..." : "Go to Order"}
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
             </div>
-            {(searching || scanMessage) && (
+            {(isLoading || scanMessage) && (
               <div className="mt-2 px-1 text-xs text-muted-foreground">
-                {searching ? "Searching products..." : scanMessage}
+                {isLoading ? "Searching products..." : scanMessage}
               </div>
             )}
           </div>
@@ -483,44 +544,94 @@ export function SellCart({
             </div>
           </div>
 
-          {filteredProducts.length === 0 ? (
-            <div className="rounded-lg border border-dashed bg-card p-10 text-center">
-              <ShoppingCart className="mx-auto h-9 w-9 text-muted-foreground" />
-              <h2 className="mt-3 text-base font-semibold">No products match</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Try a different search, category, or stock filter.
-              </p>
-            </div>
-          ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
-              {filteredProducts.map((product) => (
-                <ProductTile
-                  key={product.id}
-                  currency={currency}
-                  defaultLowStockThreshold={defaultLowStockThreshold}
-                  onAdd={() => addProduct(product)}
-                  product={product}
-                  selectedQuantity={cartQuantityByProduct.get(product.id) ?? 0}
-                />
-              ))}
-            </div>
+          {displayedProducts.length === 0 ? (
+            isLoading ? (
+              <div className="flex flex-col items-center justify-center p-12 text-center rounded-lg border border-dashed bg-card min-h-[300px]">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                <h3 className="mt-4 text-sm font-semibold">Loading catalog...</h3>
+                <p className="mt-1 text-xs text-muted-foreground">Fetching matching inventory items</p>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-card p-10 text-center">
+                <ShoppingCart className="mx-auto h-9 w-9 text-muted-foreground" />
+                <h2 className="mt-3 text-base font-semibold">No products match</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Try a different search, category, or stock filter.
+                </p>
+              </div>
+            )
           ) : (
-            <div className="overflow-hidden rounded-lg border bg-card shadow-card">
-              {filteredProducts.map((product) => (
-                <ProductRow
-                  key={product.id}
-                  currency={currency}
-                  defaultLowStockThreshold={defaultLowStockThreshold}
-                  onAdd={() => addProduct(product)}
-                  product={product}
-                  selectedQuantity={cartQuantityByProduct.get(product.id) ?? 0}
-                />
-              ))}
-            </div>
+            <>
+              {viewMode === "grid" ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
+                  {displayedProducts.map((product) => (
+                    <ProductTile
+                      key={product.id}
+                      currency={currency}
+                      defaultLowStockThreshold={defaultLowStockThreshold}
+                      onAdd={() => addProduct(product)}
+                      onDecrease={() => {
+                        const line = cart.find((l) => l.productId === product.id);
+                        if (line) setQuantity(line.key, line.quantity - 1);
+                      }}
+                      onRemove={() => {
+                        const line = cart.find((l) => l.productId === product.id);
+                        if (line) removeLine(line.key);
+                      }}
+                      product={product}
+                      selectedQuantity={cartQuantityByProduct.get(product.id) ?? 0}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-lg border bg-card shadow-card">
+                  {displayedProducts.map((product) => (
+                    <ProductRow
+                      key={product.id}
+                      currency={currency}
+                      defaultLowStockThreshold={defaultLowStockThreshold}
+                      onAdd={() => addProduct(product)}
+                      onDecrease={() => {
+                        const line = cart.find((l) => l.productId === product.id);
+                        if (line) setQuantity(line.key, line.quantity - 1);
+                      }}
+                      onRemove={() => {
+                        const line = cart.find((l) => l.productId === product.id);
+                        if (line) removeLine(line.key);
+                      }}
+                      product={product}
+                      selectedQuantity={cartQuantityByProduct.get(product.id) ?? 0}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Load More Button */}
+              {hasMore && (
+                <div className="flex justify-center pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={loadMore}
+                    disabled={isLoading}
+                    className="h-11 px-8 min-w-[160px] font-semibold border-primary/20 text-primary hover:bg-primary/5 transition duration-200"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
+                        Loading...
+                      </>
+                    ) : (
+                      "Load More Products"
+                    )}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </section>
 
-        <aside id="sell-cart" className="hidden min-w-0 scroll-mt-24 sm:block lg:sticky lg:top-20 lg:self-start">
+        <aside id="sell-cart" className="hidden min-w-0 scroll-mt-24 lg:block lg:sticky lg:top-20 lg:self-start">
           <CartPanel className="rounded-lg border bg-card shadow-card">
             <div className="border-b p-4">
               <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-primary">
@@ -657,7 +768,7 @@ export function SellCart({
       </div>
 
       <Dialog open={cartOpen} onOpenChange={setCartOpen}>
-        <DialogContent title="Cart" className="max-h-[92vh] max-w-[calc(100vw-2rem)] overflow-hidden p-0 sm:hidden">
+        <DialogContent title="Cart" className="max-h-[92vh] w-full max-w-[calc(100vw-2rem)] sm:max-w-md overflow-hidden p-0 lg:hidden">
           <CartPanel className="flex max-h-[calc(92vh-49px)] flex-col overflow-hidden rounded-lg bg-card">
             <div className="shrink-0 border-b p-4">
               <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-primary">
@@ -1079,63 +1190,145 @@ function ProductTile({
   currency,
   defaultLowStockThreshold,
   onAdd,
+  onDecrease,
+  onRemove,
   product,
   selectedQuantity,
 }: {
   currency: string;
   defaultLowStockThreshold: number;
   onAdd: () => void;
+  onDecrease: () => void;
+  onRemove: () => void;
   product: Product;
   selectedQuantity: number;
 }) {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
   const available = availableFor(product);
   const tone = stockTone(available, product.lowStockThreshold ?? defaultLowStockThreshold);
+
+  useEffect(() => {
+    if (!popoverOpen) return;
+    function handler(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setPopoverOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [popoverOpen]);
+
   return (
-    <button
-      type="button"
-      onClick={onAdd}
+    <div
       className={cn(
-        "group relative min-w-0 overflow-hidden rounded-lg border bg-card text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group relative min-w-0 rounded-lg border bg-card text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         selectedQuantity > 0 && "border-success ring-1 ring-success",
       )}
     >
-      <div className="relative aspect-[4/3] bg-muted">
-        {product.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <ImageIcon className="h-9 w-9 text-muted-foreground" />
-          </div>
-        )}
-        <span
-          className={cn(
-            "absolute left-2 top-2 h-3 w-3 rounded-full",
-            tone === "out"
-              ? "bg-destructive"
-              : tone === "low"
-                ? "bg-warning"
-                : "bg-success",
+      <button
+        type="button"
+        onClick={onAdd}
+        className="w-full text-left"
+      >
+        <div className="relative aspect-[4/3] bg-muted rounded-t-lg overflow-hidden">
+          {product.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <ImageIcon className="h-9 w-9 text-muted-foreground" />
+            </div>
           )}
-        />
-        {selectedQuantity > 0 && (
-          <span className="absolute right-2 top-2 inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-success px-2 text-sm font-bold text-success-foreground">
+          <span
+            className={cn(
+              "absolute left-2 top-2 h-3 w-3 rounded-full",
+              tone === "out"
+                ? "bg-destructive"
+                : tone === "low"
+                  ? "bg-warning"
+                  : "bg-success",
+            )}
+          />
+        </div>
+        <div className="border-t bg-card rounded-b-lg p-3 text-card-foreground dark:bg-slate-800 dark:text-white">
+          <div className="truncate text-sm font-bold" title={product.name}>
+            {compactName(product.name)}
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold">{formatMoney(productPrice(product), currency)}</span>
+            <span className="truncate text-xs text-muted-foreground dark:text-white/70">
+              {Number.isFinite(available) ? `${available} left` : "open"}
+            </span>
+          </div>
+        </div>
+      </button>
+
+      {selectedQuantity > 0 && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setPopoverOpen(!popoverOpen);
+          }}
+          className="absolute right-2 top-2 inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-success px-2 text-sm font-bold text-success-foreground hover:bg-success/90 transition shadow-md z-10"
+        >
+          {selectedQuantity}
+        </button>
+      )}
+
+      {popoverOpen && selectedQuantity > 0 && (
+        <div
+          ref={popoverRef}
+          className="absolute right-2 top-12 z-20 flex items-center gap-1.5 rounded-lg border bg-popover p-1.5 shadow-xl animate-in fade-in-50 zoom-in-95 duration-100 dark:bg-slate-900 border-border"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDecrease();
+            }}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-background hover:bg-accent text-foreground transition"
+            aria-label="Decrease quantity"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          
+          <span className="min-w-8 text-center text-sm font-bold text-foreground">
             {selectedQuantity}
           </span>
-        )}
-      </div>
-      <div className="border-t bg-card p-3 text-card-foreground dark:bg-slate-800 dark:text-white">
-        <div className="truncate text-sm font-bold" title={product.name}>
-          {compactName(product.name)}
+          
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd();
+            }}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-background hover:bg-accent text-foreground transition text-sm font-semibold"
+            aria-label="Increase quantity"
+          >
+            +
+          </button>
+          
+          <div className="h-6 w-px bg-border mx-1" />
+          
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+              setPopoverOpen(false);
+            }}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-destructive/10 hover:bg-destructive text-destructive hover:text-destructive-foreground transition"
+            aria-label="Remove item"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
-        <div className="mt-1 flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold">{formatMoney(productPrice(product), currency)}</span>
-          <span className="truncate text-xs text-muted-foreground dark:text-white/70">
-            {Number.isFinite(available) ? `${available} left` : "open"}
-          </span>
-        </div>
-      </div>
-    </button>
+      )}
+    </div>
   );
 }
 
@@ -1143,49 +1336,135 @@ function ProductRow({
   currency,
   defaultLowStockThreshold,
   onAdd,
+  onDecrease,
+  onRemove,
   product,
   selectedQuantity,
 }: {
   currency: string;
   defaultLowStockThreshold: number;
   onAdd: () => void;
+  onDecrease: () => void;
+  onRemove: () => void;
   product: Product;
   selectedQuantity: number;
 }) {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
   const available = availableFor(product);
   const tone = stockTone(available, product.lowStockThreshold ?? defaultLowStockThreshold);
+
+  useEffect(() => {
+    if (!popoverOpen) return;
+    function handler(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setPopoverOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [popoverOpen]);
+
   return (
-    <button
-      type="button"
-      onClick={onAdd}
-      className="flex w-full items-center gap-3 border-b p-3 text-left last:border-b-0 hover:bg-accent"
+    <div
+      className={cn(
+        "group relative flex w-full items-center justify-between border-b p-3 last:border-b-0 transition hover:bg-accent/40",
+        selectedQuantity > 0 && "bg-success/5 border-success/30",
+      )}
     >
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-        {product.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <ImageIcon className="h-5 w-5 text-muted-foreground" />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold">{product.name}</div>
-        <div className="truncate text-xs text-muted-foreground">
-          {product.sku ?? product.barcode ?? "No SKU"} - {Number.isFinite(available) ? `${available} left` : "open"}
+      <button
+        type="button"
+        onClick={onAdd}
+        className="flex flex-1 items-center justify-between text-left focus-visible:outline-none"
+      >
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+            {product.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <ImageIcon className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold">{product.name}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {product.sku ?? product.barcode ?? "No SKU"} - {Number.isFinite(available) ? `${available} left` : "open"}
+            </div>
+          </div>
         </div>
-      </div>
-      <div className="text-right">
-        <div className="text-sm font-bold">{formatMoney(productPrice(product), currency)}</div>
-        <div
-          className={cn(
-            "text-xs font-medium",
-            tone === "out" ? "text-destructive" : tone === "low" ? "text-warning" : "text-success",
+        <div className="text-right mr-3 shrink-0">
+          <div className="text-sm font-bold">{formatMoney(productPrice(product), currency)}</div>
+        </div>
+      </button>
+
+      {selectedQuantity > 0 && (
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPopoverOpen(!popoverOpen);
+            }}
+            className="inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-success px-2 text-sm font-bold text-success-foreground hover:bg-success/90 transition shadow-md"
+          >
+            {selectedQuantity}
+          </button>
+
+          {popoverOpen && (
+            <div
+              ref={popoverRef}
+              className="absolute right-0 top-10 z-20 flex items-center gap-1.5 rounded-lg border bg-popover p-1.5 shadow-xl animate-in fade-in-50 zoom-in-95 duration-100 dark:bg-slate-900 border-border"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDecrease();
+                }}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-background hover:bg-accent text-foreground transition"
+                aria-label="Decrease quantity"
+              >
+                <Minus className="h-3.5 w-3.5" />
+              </button>
+              
+              <span className="min-w-8 text-center text-sm font-bold text-foreground">
+                {selectedQuantity}
+              </span>
+              
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAdd();
+                }}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-background hover:bg-accent text-foreground transition text-sm font-semibold"
+                aria-label="Increase quantity"
+              >
+                +
+              </button>
+              
+              <div className="h-6 w-px bg-border mx-1" />
+              
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove();
+                  setPopoverOpen(false);
+                }}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-destructive/10 hover:bg-destructive text-destructive hover:text-destructive-foreground transition"
+                aria-label="Remove item"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
           )}
-        >
-          {selectedQuantity > 0 ? `${selectedQuantity} in cart` : "Add"}
         </div>
-      </div>
-    </button>
+      )}
+    </div>
   );
 }
 
@@ -1213,27 +1492,49 @@ function CartLineItem({
   const canSwitchUom = line.productPackSize > 1;
 
   return (
-    <div className="grid grid-cols-[92px_1fr_auto] gap-3 rounded-lg border p-3">
-      <div className="flex items-center gap-2">
+    <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border p-3 bg-card text-card-foreground">
+      <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-1 border-border shrink-0">
         <button
           type="button"
           onClick={onDecrease}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md border hover:bg-accent"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-background hover:bg-accent text-foreground transition"
           aria-label="Decrease quantity"
         >
-          <Minus className="h-4 w-4" />
+          <Minus className="h-3.5 w-3.5" />
         </button>
+        
         <Input
           type="number"
           min={1}
           value={line.quantity}
           onChange={(event) => onQuantityChange(parseInt(event.target.value || "1", 10))}
-          className="h-9 w-12 px-1 text-center"
+          className="h-8 w-10 border-0 bg-transparent p-0 text-center text-sm font-bold focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-foreground"
           aria-label={`Quantity for ${line.name}`}
         />
+        
+        <button
+          type="button"
+          onClick={onIncrease}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-background hover:bg-accent text-foreground transition text-sm font-semibold"
+          aria-label="Increase quantity"
+        >
+          +
+        </button>
+        
+        <div className="h-6 w-px bg-border mx-1" />
+        
+        <button
+          type="button"
+          onClick={onRemove}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-destructive/10 hover:bg-destructive text-destructive hover:text-destructive-foreground transition"
+          aria-label={`Remove ${line.name}`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       </div>
+      
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold" title={line.name}>
+        <div className="truncate text-sm font-semibold text-foreground" title={line.name}>
           {line.name}
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -1265,17 +1566,11 @@ function CartLineItem({
           </div>
         )}
       </div>
-      <div className="flex flex-col items-end justify-between gap-2">
-        <button
-          type="button"
-          onClick={onRemove}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          aria-label={`Remove ${line.name}`}
-        >
-          <X className="h-4 w-4" />
-        </button>
-        <div className="text-sm font-bold tabular-nums">{formatMoney(lineTotal, currency)}</div>
+      
+      <div className="flex flex-col items-end justify-center">
+        <div className="text-sm font-bold tabular-nums text-foreground">{formatMoney(lineTotal, currency)}</div>
       </div>
     </div>
   );
 }
+

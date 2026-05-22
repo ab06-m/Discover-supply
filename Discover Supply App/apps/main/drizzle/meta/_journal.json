@@ -43,6 +43,13 @@
       "when": 1777596540000,
       "tag": "0006_check_in_product_sections",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779068649568,
+      "tag": "0006_dark_arclight",
+      "breakpoints": true
     }
   ]
 }
