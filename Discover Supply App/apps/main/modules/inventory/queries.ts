@@ -1,5 +1,5 @@
 import { db, schema } from "@/lib/db";
-import { and, count, desc, eq, gte, ilike, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, ilike, lte, or, sql } from "drizzle-orm";
 
 export type ProductListRow = {
   id: string;
@@ -26,17 +26,59 @@ export type ProductListRow = {
   showInOnlineStore: boolean;
 };
 
-export async function countProducts(orgId: string, search?: string) {
-  const where = search
-    ? and(
-        eq(schema.products.orgId, orgId),
-        or(
-          ilike(schema.products.name, `%${search}%`),
-          ilike(schema.products.sku, `%${search}%`),
-          ilike(schema.products.barcode, `%${search}%`),
-        ),
-      )
-    : eq(schema.products.orgId, orgId);
+export type ProductStockFilter = "all" | "in_stock" | "low_stock" | "out_of_stock";
+export type ProductSortOption =
+  | "newest"
+  | "most_sales"
+  | "least_sales"
+  | "highest_inventory"
+  | "lowest_inventory"
+  | "highest_value"
+  | "lowest_value";
+
+function buildProductsWhere(
+  orgId: string,
+  {
+    search,
+    stockFilter = "all",
+    defaultLowStockThreshold,
+  }: {
+    search?: string;
+    stockFilter?: ProductStockFilter;
+    defaultLowStockThreshold?: number;
+  },
+) {
+  const available = sql<number>`${schema.products.onHand} - ${schema.products.committed}`;
+  const lowStockThreshold = sql<number>`coalesce(${schema.products.lowStockThreshold}, ${defaultLowStockThreshold ?? 10})`;
+  const searchTerm = search?.trim();
+  const filters = [eq(schema.products.orgId, orgId)];
+
+  if (searchTerm) {
+    filters.push(
+      or(
+        ilike(schema.products.name, `%${searchTerm}%`),
+        ilike(schema.products.sku, `%${searchTerm}%`),
+        ilike(schema.products.barcode, `%${searchTerm}%`),
+      )!,
+    );
+  }
+
+  if (stockFilter === "out_of_stock") {
+    filters.push(and(eq(schema.products.trackStock, true), lte(available, 0))!);
+  } else if (stockFilter === "low_stock") {
+    filters.push(and(eq(schema.products.trackStock, true), gt(available, 0), lte(available, lowStockThreshold))!);
+  } else if (stockFilter === "in_stock") {
+    filters.push(and(eq(schema.products.trackStock, true), gt(available, lowStockThreshold))!);
+  }
+
+  return and(...filters);
+}
+
+export async function countProducts(
+  orgId: string,
+  opts: { search?: string; stockFilter?: ProductStockFilter; defaultLowStockThreshold?: number } = {},
+) {
+  const where = buildProductsWhere(orgId, opts);
 
   const [row] = await db.select({ total: count() }).from(schema.products).where(where);
   return row?.total ?? 0;
@@ -44,82 +86,96 @@ export async function countProducts(orgId: string, search?: string) {
 
 export async function listProducts(
   orgId: string,
-  opts: { search?: string; limit?: number; offset?: number } = {},
+  opts: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+    stockFilter?: ProductStockFilter;
+    defaultLowStockThreshold?: number;
+    sortBy?: ProductSortOption;
+  } = {},
 ) {
-  const { search, limit = 50, offset = 0 } = opts;
+  const {
+    search,
+    limit = 50,
+    offset = 0,
+    stockFilter = "all",
+    defaultLowStockThreshold,
+    sortBy = "newest",
+  } = opts;
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const where = search
-    ? and(
-        eq(schema.products.orgId, orgId),
-        or(
-          ilike(schema.products.name, `%${search}%`),
-          ilike(schema.products.sku, `%${search}%`),
-          ilike(schema.products.barcode, `%${search}%`),
+  const where = buildProductsWhere(orgId, { search, stockFilter, defaultLowStockThreshold });
+  const available = sql<number>`${schema.products.onHand} - ${schema.products.committed}`;
+  const inventoryValue = sql<number>`${available} * ${schema.products.cost}`;
+  const salesLast30Subquery = db
+    .select({
+      productId: schema.stockMovements.productId,
+      sold_last_30:
+        sql<number>`coalesce(sum(abs(${schema.stockMovements.onHandDelta})), 0)::int`.as(
+          "sold_last_30",
         ),
-      )
-    : eq(schema.products.orgId, orgId);
-
-  // Run product list and sold-last-30 aggregation in parallel to eliminate the
-  // sequential waterfall (products → extract IDs → stock movements).
-  // The stock movements query scans the full org partition for the date range
-  // which is fast due to the indexed columns, and we join in-memory by productId.
-  const [products, performanceRows] = await Promise.all([
-    db
-      .select({
-        id: schema.products.id,
-        name: schema.products.name,
-        kind: schema.products.kind,
-        brand: schema.products.brand,
-        vendor: schema.products.vendor,
-        sku: schema.products.sku,
-        barcode: schema.products.barcode,
-        unit: schema.products.unit,
-        packSize: schema.products.packSize,
-        price: schema.products.price,
-        cost: schema.products.cost,
-        onHand: schema.products.onHand,
-        committed: schema.products.committed,
-        available: sql<number>`${schema.products.onHand} - ${schema.products.committed}`,
-        lowStockThreshold: schema.products.lowStockThreshold,
-        trackStock: schema.products.trackStock,
-        isActive: schema.products.isActive,
-        imageUrl: schema.products.imageUrl,
-        imageGallery: schema.products.imageGallery,
-        returnable: schema.products.returnable,
-        showInOnlineStore: schema.products.showInOnlineStore,
-      })
-      .from(schema.products)
-      .where(where)
-      .orderBy(desc(schema.products.createdAt))
-      .limit(limit)
-      .offset(offset),
-    db
-      .select({
-        productId: schema.stockMovements.productId,
-        soldLast30: sql<number>`coalesce(sum(abs(${schema.stockMovements.onHandDelta})), 0)::int`,
-      })
-      .from(schema.stockMovements)
-      .where(
-        and(
-          eq(schema.stockMovements.orgId, orgId),
-          eq(schema.stockMovements.kind, "consume"),
-          gte(schema.stockMovements.createdAt, thirtyDaysAgo),
-        ),
-      )
-      .groupBy(schema.stockMovements.productId),
-  ]);
-
-  if (!products.length) return [] satisfies ProductListRow[];
-
-  const soldByProductId = new Map(
-    performanceRows.map((row) => [row.productId, row.soldLast30]),
+    })
+    .from(schema.stockMovements)
+    .where(
+      and(
+        eq(schema.stockMovements.orgId, orgId),
+        eq(schema.stockMovements.kind, "consume"),
+        gte(schema.stockMovements.createdAt, thirtyDaysAgo),
+      ),
+    )
+    .groupBy(schema.stockMovements.productId)
+    .as("sales_last_30");
+  const soldLast30Metric = sql<number>`coalesce(${salesLast30Subquery.sold_last_30}, 0)::int`.as(
+    "sold_last_30_metric",
   );
 
-  return products.map((product) => ({
-    ...product,
-    soldLast30: soldByProductId.get(product.id) ?? 0,
-  })) satisfies ProductListRow[];
+  const orderBy =
+    sortBy === "most_sales"
+      ? [desc(soldLast30Metric), desc(available), desc(schema.products.updatedAt)]
+      : sortBy === "least_sales"
+        ? [asc(soldLast30Metric), asc(available), desc(schema.products.updatedAt)]
+        : sortBy === "highest_inventory"
+          ? [desc(available), desc(soldLast30Metric), desc(schema.products.updatedAt)]
+          : sortBy === "lowest_inventory"
+            ? [asc(available), asc(soldLast30Metric), desc(schema.products.updatedAt)]
+            : sortBy === "highest_value"
+              ? [desc(inventoryValue), desc(available), desc(schema.products.updatedAt)]
+              : sortBy === "lowest_value"
+                ? [asc(inventoryValue), asc(available), desc(schema.products.updatedAt)]
+                : [desc(schema.products.createdAt)];
+
+  return db
+    .select({
+      id: schema.products.id,
+      name: schema.products.name,
+      kind: schema.products.kind,
+      brand: schema.products.brand,
+      vendor: schema.products.vendor,
+      sku: schema.products.sku,
+      barcode: schema.products.barcode,
+      unit: schema.products.unit,
+      packSize: schema.products.packSize,
+      price: schema.products.price,
+      cost: schema.products.cost,
+      onHand: schema.products.onHand,
+      committed: schema.products.committed,
+      available,
+      soldLast30: soldLast30Metric,
+      lowStockThreshold: schema.products.lowStockThreshold,
+      trackStock: schema.products.trackStock,
+      isActive: schema.products.isActive,
+      imageUrl: schema.products.imageUrl,
+      imageGallery: schema.products.imageGallery,
+      returnable: schema.products.returnable,
+      showInOnlineStore: schema.products.showInOnlineStore,
+    })
+    .from(schema.products)
+    .leftJoin(salesLast30Subquery, eq(schema.products.id, salesLast30Subquery.productId))
+    .where(where)
+    .orderBy(...orderBy)
+    .limit(limit)
+    .offset(offset);
 }
 
 export async function getProductInventorySummary(

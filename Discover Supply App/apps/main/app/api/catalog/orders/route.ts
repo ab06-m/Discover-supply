@@ -4,6 +4,7 @@ import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getCatalogOrg } from "@/lib/catalog-org";
 import { generateDocNumber, withDocumentNumberRetry } from "@/modules/inventory/lib/generate-number";
+import { normalizePhoneDigits } from "@/modules/customers/lib/phone-normalization";
 import { getInitialStage } from "@/modules/orders/queries";
 
 export const dynamic = "force-dynamic";
@@ -67,17 +68,13 @@ function cleanPhone(value: string | undefined) {
   return phone || null;
 }
 
-function phoneDigits(value: string | null) {
-  return value?.replace(/\D/g, "") ?? "";
-}
-
 async function findCatalogCustomer(
   orgId: string,
   input: { email?: string | null; phone?: string | null },
 ) {
   const email = cleanEmail(input.email ?? undefined);
   const phone = cleanPhone(input.phone ?? undefined);
-  const digits = phoneDigits(phone);
+  const digits = normalizePhoneDigits(phone);
   const matchers = [];
 
   if (email) {

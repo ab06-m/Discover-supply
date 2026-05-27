@@ -3,7 +3,9 @@
 import { useRef, useState, useEffect, useDeferredValue } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
-import { Search, X } from "lucide-react";
+import { Barcode, Search, X } from "lucide-react";
+import { BarcodeScanner } from "@/modules/inventory/components/barcode-scanner";
+import { lookupByBarcode } from "@/modules/inventory/actions";
 
 type Suggestion = {
   id: string;
@@ -19,9 +21,12 @@ export function ProductSearchInput({ defaultValue = "" }: { defaultValue?: strin
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const scanMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -106,13 +111,41 @@ export function ProductSearchInput({ defaultValue = "" }: { defaultValue?: strin
     router.push("/products");
   }
 
+  function flashScanMessage(text: string) {
+    setScanMessage(text);
+    if (scanMessageTimerRef.current) clearTimeout(scanMessageTimerRef.current);
+    scanMessageTimerRef.current = setTimeout(() => setScanMessage(null), 3000);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (scanMessageTimerRef.current) clearTimeout(scanMessageTimerRef.current);
+    };
+  }, []);
+
+  async function handleScan(code: string) {
+    setScanOpen(false);
+    setScanMessage(null);
+    try {
+      const product = await lookupByBarcode(code);
+      if (!product) {
+        setValue(code);
+        flashScanMessage(`No product found for ${code}.`);
+        return;
+      }
+      router.push(`/products/${product.id}`);
+    } catch {
+      flashScanMessage("Scan failed. Please try again.");
+    }
+  }
+
   return (
     <div ref={containerRef} className="relative max-w-sm">
       <div className="relative">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           name="q"
-          className={`pl-8 ${value ? "pr-8" : ""}`}
+          className={value ? "pl-8 pr-16" : "pl-8 pr-9"}
           placeholder="Search name, SKU, or barcode…"
           value={value}
           autoComplete="off"
@@ -124,13 +157,37 @@ export function ProductSearchInput({ defaultValue = "" }: { defaultValue?: strin
           <button
             type="button"
             onClick={clearSearch}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            className="absolute right-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             aria-label="Clear search"
           >
             <X className="h-4 w-4" />
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => {
+            setScanMessage(null);
+            setScanOpen(true);
+          }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Scan barcode to locate item"
+          title="Scan barcode to locate item"
+        >
+          <Barcode className="h-4 w-4" />
+        </button>
       </div>
+
+      {scanMessage && (
+        <p className="mt-1 text-xs text-muted-foreground" role="status" aria-live="polite">
+          {scanMessage}
+        </p>
+      )}
+
+      <BarcodeScanner
+        open={scanOpen}
+        onScan={handleScan}
+        onClose={() => setScanOpen(false)}
+      />
 
       {open && (
         <ul

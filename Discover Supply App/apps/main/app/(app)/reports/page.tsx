@@ -20,6 +20,7 @@ import { ReportsBrowser } from "@/modules/reports/components/reports-browser";
 import { ReportsFilterForm } from "@/modules/reports/components/reports-filter-form";
 import { getReportResult, type ReportFilters } from "@/modules/reports/engine";
 import { formatDateInput, isReportDatePreset, resolveReportDateRange } from "@/modules/reports/date-ranges";
+import { ReportsSummary } from "@/modules/reports/components/reports-summary";
 import { ReportsTable } from "@/modules/reports/components/reports-table";
 
 export const dynamic = "force-dynamic";
@@ -248,6 +249,12 @@ export default async function ReportsPage({
               customerId={params.customerId}
               categories={categories}
               customers={customers}
+            />
+
+            <ReportsSummary
+              reportId={selectedReport.id}
+              summary={result.summary}
+              currency={org.currency}
             />
 
             <ReportsTable

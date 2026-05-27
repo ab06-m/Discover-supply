@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import type { ReportDefinition } from "../catalog";
 
 const STORAGE_KEY = "discover-supply.reports.pinned.v1";
-const defaultPinnedReportIds = ["low-stock", "top-selling-products", "customer-reorder-prediction"];
+const defaultPinnedReportIds = ["low-stock", "total-sales", "top-selling-products", "customer-reorder-prediction"];
 
 const groupConfig = {
   Inventory: {
@@ -42,6 +42,7 @@ const reportIcons: Record<string, typeof Package> = {
   "inventory-aging": Clock,
   "stock-movement": Activity,
   "low-stock": AlertTriangle,
+  "total-sales": ShoppingCart,
   "top-selling-products": BarChart3,
   "slow-dead-inventory": Boxes,
   "gross-margin-by-product": TrendingUp,

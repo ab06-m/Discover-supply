@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FileText, Printer, ReceiptText, Truck } from "lucide-react";
+import { FileText, Plus, Printer, ReceiptText, ShoppingCart, Truck } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
 import { getOrder, listStages } from "@/modules/orders/queries";
 import { StagePipeline } from "@/modules/orders/components/stage-pipeline";
@@ -57,9 +57,15 @@ export default async function OrderDetailPage({
 
   const { order, stage, customer, items, history } = record;
   const stageMap = new Map(stages.map((s) => [s.id, s]));
+  const stagePipelineStages = stages.filter(
+    (candidate) => candidate.effect !== "mark_paid" || candidate.id === order.stageId,
+  );
   const canAdvance = can(role as Role, "order.advance_stage");
+  const canEdit = can(role as Role, "order.edit");
   const canInvoice = can(role as Role, "invoice.create");
   const canDispatch = can(role as Role, "dispatch.assign");
+  const canAddItems =
+    canEdit && (stage?.slug === "draft" || stage?.slug === "confirmed");
 
   const [existingDispatch, invoices] = await Promise.all([
     db
@@ -176,7 +182,7 @@ export default async function OrderDetailPage({
           <StagePipeline
             orderId={order.id}
             currentStageId={order.stageId}
-            stages={stages}
+            stages={stagePipelineStages}
             canAdvance={canAdvance}
           />
         </CardContent>
@@ -184,8 +190,19 @@ export default async function OrderDetailPage({
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="shadow-card lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle>Items</CardTitle>
+            {canAddItems ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/sell?orderId=${order.id}`} title="Add items to this order">
+                  <span className="relative mr-2 inline-flex h-4 w-4">
+                    <ShoppingCart className="h-4 w-4" />
+                    <Plus className="absolute -right-1.5 -top-1.5 h-3 w-3 rounded-full bg-primary text-primary-foreground" />
+                  </span>
+                  Add items
+                </Link>
+              </Button>
+            ) : null}
           </CardHeader>
           <CardContent>
             <Table>

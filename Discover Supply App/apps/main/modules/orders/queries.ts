@@ -2,16 +2,34 @@ import { db, schema } from "@/lib/db";
 import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 
 const DEFAULT_LIST_LIMIT = 100;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isIsoDate(value?: string) {
+  return Boolean(value && ISO_DATE_PATTERN.test(value));
+}
 
 export async function listOrders(
   orgId: string,
-  opts: { search?: string; stageId?: string; customerId?: string; limit?: number } = {},
+  opts: {
+    search?: string;
+    stageId?: string;
+    customerId?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+  } = {},
 ) {
-  const { search, stageId, customerId, limit = DEFAULT_LIST_LIMIT } = opts;
+  const { search, stageId, customerId, from, to, limit = DEFAULT_LIST_LIMIT } = opts;
 
   const conditions = [eq(schema.orders.orgId, orgId)];
   if (stageId) conditions.push(eq(schema.orders.stageId, stageId));
   if (customerId) conditions.push(eq(schema.orders.customerId, customerId));
+  if (isIsoDate(from)) {
+    conditions.push(sql`${schema.orders.createdAt}::date >= ${from}`);
+  }
+  if (isIsoDate(to)) {
+    conditions.push(sql`${schema.orders.createdAt}::date <= ${to}`);
+  }
   if (search) {
     const w = or(
       ilike(schema.orders.number, `%${search}%`),

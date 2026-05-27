@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus, Search, Store } from "lucide-react";
 import { requireActiveOrg } from "@/lib/auth";
-import { listCustomers } from "@/modules/customers/queries";
+import { listCustomers, type CustomerListSort } from "@/modules/customers/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -14,11 +14,12 @@ export const dynamic = "force-dynamic";
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; sort?: string }>;
 }) {
   const { org } = await requireActiveOrg();
-  const { q } = await searchParams;
-  const rows = await listCustomers(org.id, { search: q });
+  const { q, sort } = await searchParams;
+  const sortBy: CustomerListSort = sort === "name" ? "name" : "latest";
+  const rows = await listCustomers(org.id, { search: q, sort: sortBy });
 
   return (
     <div className="space-y-6">
@@ -43,6 +44,7 @@ export default async function CustomersPage({
               defaultValue={q ?? ""}
               className="h-12 pr-11"
             />
+            {sortBy !== "latest" ? <input type="hidden" name="sort" value={sortBy} /> : null}
             <button
               type="submit"
               className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
@@ -77,7 +79,7 @@ export default async function CustomersPage({
           }
         />
       ) : (
-        <CustomersList rows={rows} currency={org.currency} />
+        <CustomersList rows={rows} currency={org.currency} sort={sortBy} />
       )}
     </div>
   );

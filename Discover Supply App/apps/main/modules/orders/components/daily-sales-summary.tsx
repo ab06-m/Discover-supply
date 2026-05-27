@@ -80,7 +80,7 @@ export function DailySalesSummary({
         {groups.map((group) => (
           <Card
             key={group.key}
-            className="overflow-hidden border-sky-100 bg-gradient-to-r from-white via-sky-50/70 to-white shadow-card dark:border-cyan-900/40 dark:from-slate-950 dark:via-cyan-950/35 dark:to-slate-950"
+            className="overflow-hidden border-indigo-200/80 bg-gradient-to-r from-indigo-50 via-sky-100/80 to-indigo-50 shadow-card dark:border-cyan-900/40 dark:from-slate-950 dark:via-cyan-950/35 dark:to-slate-950"
           >
             <div className="grid min-h-24 grid-cols-[minmax(0,1fr)_4.25rem_6.75rem] items-center gap-2 px-3 py-3 min-[430px]:grid-cols-[minmax(0,1fr)_4.75rem_7.75rem] min-[430px]:px-4 sm:grid-cols-[minmax(0,1fr)_8rem_10rem] sm:gap-4 sm:px-5">
               <div className="flex min-w-0 items-center gap-2 min-[430px]:gap-3">

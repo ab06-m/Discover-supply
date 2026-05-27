@@ -1,16 +1,44 @@
 import { db, schema } from "@/lib/db";
-import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, notInArray, or, sql } from "drizzle-orm";
 
 const DEFAULT_LIST_LIMIT = 100;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isIsoDate(value?: string) {
+  return Boolean(value && ISO_DATE_PATTERN.test(value));
+}
 
 export async function listInvoices(
   orgId: string,
-  opts: { search?: string; status?: string; customerId?: string; limit?: number } = {},
+  opts: {
+    search?: string;
+    status?: string;
+    customerId?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+  } = {},
 ) {
-  const { search, status, customerId, limit = DEFAULT_LIST_LIMIT } = opts;
+  const { search, status, customerId, from, to, limit = DEFAULT_LIST_LIMIT } = opts;
   const conditions = [eq(schema.invoices.orgId, orgId)];
-  if (status) conditions.push(eq(schema.invoices.status, status as any));
+  if (status === "unpaid") {
+    conditions.push(notInArray(schema.invoices.status, ["paid", "void", "partial"]));
+  } else if (status === "paid") {
+    conditions.push(eq(schema.invoices.status, "paid"));
+  } else if (status === "void") {
+    conditions.push(eq(schema.invoices.status, "void"));
+  } else if (status === "partial") {
+    conditions.push(eq(schema.invoices.status, "partial"));
+  } else if (status) {
+    conditions.push(inArray(schema.invoices.status, [status as any]));
+  }
   if (customerId) conditions.push(eq(schema.invoices.customerId, customerId));
+  if (isIsoDate(from)) {
+    conditions.push(sql`${schema.invoices.issueDate}::date >= ${from}`);
+  }
+  if (isIsoDate(to)) {
+    conditions.push(sql`${schema.invoices.issueDate}::date <= ${to}`);
+  }
   if (search) {
     const w = or(
       ilike(schema.invoices.number, `%${search}%`),
@@ -28,9 +56,18 @@ export async function listInvoices(
       amountPaid: schema.invoices.amountPaid,
       issueDate: schema.invoices.issueDate,
       dueDate: schema.invoices.dueDate,
+      viewedAt: schema.invoices.viewedAt,
       customerId: schema.invoices.customerId,
       customerName: schema.customers.name,
       storeCode: schema.customers.storeCode,
+      customerEmail: schema.customers.email,
+      customerPhone: schema.customers.phone,
+      customerBillingAddress: schema.customers.billingAddress,
+      customerShippingAddress: schema.customers.shippingAddress,
+      customerPaymentTerms: schema.customers.paymentTerms,
+      customerTaxId: schema.customers.taxId,
+      customerNotes: schema.customers.notes,
+      customerIsActive: schema.customers.isActive,
     })
     .from(schema.invoices)
     .leftJoin(schema.customers, eq(schema.customers.id, schema.invoices.customerId))

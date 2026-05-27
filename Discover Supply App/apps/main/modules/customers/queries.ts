@@ -1,13 +1,22 @@
 import { db, schema } from "@/lib/db";
-import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { normalizePhoneDigits } from "@/modules/customers/lib/phone-normalization";
 
 const DEFAULT_LIST_LIMIT = 100;
 
+export type CustomerListSort = "latest" | "name";
+
 export async function listCustomers(
   orgId: string,
-  opts: { search?: string; includeInactive?: boolean; limit?: number } = {},
+  opts: {
+    search?: string;
+    includeInactive?: boolean;
+    limit?: number;
+    sort?: CustomerListSort;
+  } = {},
 ) {
-  const { search, includeInactive = false, limit = DEFAULT_LIST_LIMIT } = opts;
+  const { search, includeInactive = false, limit = DEFAULT_LIST_LIMIT, sort = "latest" } = opts;
+  const searchPhoneDigits = normalizePhoneDigits(search);
 
   const conditions = [eq(schema.customers.orgId, orgId)];
   if (!includeInactive) conditions.push(eq(schema.customers.isActive, true));
@@ -17,6 +26,9 @@ export async function listCustomers(
       ilike(schema.customers.storeCode, `%${search}%`),
       ilike(schema.customers.email, `%${search}%`),
       ilike(schema.customers.phone, `%${search}%`),
+      searchPhoneDigits
+        ? sql`regexp_replace(coalesce(${schema.customers.phone}, ''), '[^0-9]', '', 'g') like ${`%${searchPhoneDigits}%`}`
+        : undefined,
     );
     if (w) conditions.push(w);
   }
@@ -85,7 +97,7 @@ export async function listCustomers(
     .leftJoin(orderStats, eq(orderStats.customerId, schema.customers.id))
     .leftJoin(accountBalances, eq(accountBalances.customerId, schema.customers.id))
     .where(and(...conditions))
-    .orderBy(desc(schema.customers.createdAt))
+    .orderBy(sort === "name" ? asc(schema.customers.name) : desc(schema.customers.createdAt))
     .limit(limit);
 }
 

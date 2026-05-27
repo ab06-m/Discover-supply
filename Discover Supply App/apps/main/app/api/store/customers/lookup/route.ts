@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { and, eq, or, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { normalizePhoneDigits } from "@/modules/customers/lib/phone-normalization";
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +30,6 @@ function cleanPhone(value: string | undefined) {
   return phone || null;
 }
 
-function phoneDigits(value: string | null) {
-  return value?.replace(/\D/g, "") ?? "";
-}
-
 export async function POST(request: Request) {
   const orgId = await resolveStoreOrgId();
   if (!orgId) {
@@ -46,7 +43,7 @@ export async function POST(request: Request) {
 
   const email = cleanEmail(parsed.data.email);
   const phone = cleanPhone(parsed.data.phone);
-  const digits = phoneDigits(phone);
+  const digits = normalizePhoneDigits(phone);
   const matchers = [];
 
   if (email) {

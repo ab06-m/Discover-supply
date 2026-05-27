@@ -251,6 +251,70 @@ export async function getReportResult(orgId: string, report: string, filters: Re
     return { report, filters: normalizedFilters, data, summary: { alerts: data.length } };
   }
 
+  if (report === "total-sales") {
+    const conditions = orderDateFilters(orgId, range, filters);
+    const balanceDue = sql<string>`greatest(${schema.orders.total} - ${schema.orders.amountPaid}, 0)::text`;
+    const paymentStatus = sql<string>`case
+      when ${schema.orders.amountPaid} >= ${schema.orders.total} then 'Paid'
+      when ${schema.orders.amountPaid} > 0 then 'Partially paid'
+      else 'Unpaid'
+    end`;
+    const customer = sql<string>`coalesce(${schema.customers.name}, 'Unknown customer')`;
+    const stage = sql<string>`coalesce(${schema.orderStages.name}, 'Unstaged')`;
+    const sortSql = {
+      date: sql`${schema.orders.createdAt}`,
+      customer,
+      orderTotal: sql`${schema.orders.total}`,
+      amountPaid: sql`${schema.orders.amountPaid}`,
+      balanceDue: sql`greatest(${schema.orders.total} - ${schema.orders.amountPaid}, 0)`,
+      orderNumber: sql`${schema.orders.number}`,
+    };
+    const data = await db
+      .select({
+        date: schema.orders.createdAt,
+        orderNumber: schema.orders.number,
+        customer,
+        storeCode: schema.customers.storeCode,
+        orderTotal: sql<string>`${schema.orders.total}::text`,
+        amountPaid: sql<string>`${schema.orders.amountPaid}::text`,
+        balanceDue,
+        paymentStatus,
+        stage,
+      })
+      .from(schema.orders)
+      .leftJoin(schema.customers, eq(schema.customers.id, schema.orders.customerId))
+      .leftJoin(schema.orderStages, eq(schema.orderStages.id, schema.orders.stageId))
+      .where(and(...conditions))
+      .orderBy(sortBy(normalizedFilters, sortSql, "date"))
+      .limit(pageSize)
+      .offset(offset);
+
+    const [orderSummary] = await db
+      .select({
+        orderCount: sql<number>`count(*)::int`,
+        totalSales: sql<string>`coalesce(sum(${schema.orders.total}), 0)::text`,
+        totalPaid: sql<string>`coalesce(sum(${schema.orders.amountPaid}), 0)::text`,
+        totalOutstanding: sql<string>`coalesce(sum(greatest(${schema.orders.total} - ${schema.orders.amountPaid}, 0)), 0)::text`,
+      })
+      .from(schema.orders)
+      .where(and(...conditions));
+
+    const [itemSummary] = await db
+      .select({
+        totalItems: sql<number>`coalesce(sum(${schema.orderItems.quantity}), 0)::int`,
+      })
+      .from(schema.orderItems)
+      .innerJoin(schema.orders, eq(schema.orders.id, schema.orderItems.orderId))
+      .where(and(...conditions));
+
+    const summary = {
+      ...(orderSummary ?? { orderCount: 0, totalSales: "0", totalPaid: "0", totalOutstanding: "0" }),
+      totalItems: itemSummary?.totalItems ?? 0,
+    };
+
+    return { report, filters: normalizedFilters, data, summary };
+  }
+
   if (report === "top-selling-products" || report === "gross-margin-by-product") {
     const unitsSold = sql<number>`coalesce(sum(${schema.orderItems.quantity}), 0)::int`;
     const orderCount = sql<number>`count(distinct ${schema.orders.id})::int`;

@@ -8,7 +8,8 @@ import { requireActiveOrg } from "@/lib/auth";
 import { assertCan, type Role } from "@/lib/permissions";
 import { generateDocNumber, withDocumentNumberRetry } from "@/modules/inventory/lib/generate-number";
 import { createInvoiceForOrder } from "@/modules/invoices/lib/create-from-order";
-import { applyStageEffect } from "./lib/apply-stage-effect";
+import { applyStageEffect, validateOrderLineAvailability } from "./lib/apply-stage-effect";
+import { syncDraftInvoiceFromOrder } from "@/modules/invoices/lib/sync-from-order";
 import { getInitialStage, searchProductsForOrder } from "./queries";
 import { DEFAULT_ORDER_TEMPLATE_CONFIG } from "./schema";
 import {
@@ -189,6 +190,9 @@ export async function transitionOrderStage(input: z.input<typeof transitionSchem
     .limit(1);
   if (!target.length) throw new Error("Target stage not found");
   const toStage = target[0];
+  if (toStage.effect === "mark_paid") {
+    throw new Error("Paid is tracked by the payment field, not stage status.");
+  }
 
   if (fromStageId === toStage.id) return;
 
@@ -294,6 +298,129 @@ export async function replaceOrderItems(input: z.input<typeof editItemsSchema>) 
     .where(and(eq(schema.orders.orgId, org.id), eq(schema.orders.id, parsed.orderId)));
 
   revalidatePath(`/orders/${parsed.orderId}`);
+}
+
+const appendItemsSchema = z.object({
+  orderId: z.string().uuid(),
+  items: z.array(lineSchema).min(1),
+});
+
+export async function appendOrderItems(input: z.input<typeof appendItemsSchema>) {
+  const { org, user, role } = await requireActiveOrg();
+  assertCan(role as Role, "order.edit");
+  const parsed = appendItemsSchema.parse(input);
+
+  const orderRow = await db
+    .select({
+      id: schema.orders.id,
+      stageSlug: schema.orderStages.slug,
+      stageEffect: schema.orderStages.effect,
+    })
+    .from(schema.orders)
+    .leftJoin(schema.orderStages, eq(schema.orderStages.id, schema.orders.stageId))
+    .where(and(eq(schema.orders.orgId, org.id), eq(schema.orders.id, parsed.orderId)))
+    .limit(1);
+  if (!orderRow.length) throw new Error("Order not found");
+
+  const { stageSlug, stageEffect } = orderRow[0];
+  if (stageSlug !== "draft" && stageSlug !== "confirmed") {
+    throw new Error("Items can only be added to Draft or Confirmed orders.");
+  }
+
+  const newLines = computeTotals(parsed.items).lines;
+  const newLineAvailability = newLines
+    .filter((line) => line.productId)
+    .map((line) => {
+      const packSize = line.unitOfMeasure === "box" ? line.packSize : 1;
+      return {
+        productId: line.productId!,
+        baseQuantity: line.quantity * packSize,
+      };
+    });
+
+  if (stageEffect === "commit" && newLineAvailability.length) {
+    await validateOrderLineAvailability({
+      orgId: org.id,
+      lines: newLineAvailability,
+    });
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.orderItems).values(
+      newLines.map((l) => {
+        const packSize = l.unitOfMeasure === "box" ? l.packSize : 1;
+        const baseQty = l.quantity * packSize;
+        return {
+          orgId: org.id,
+          orderId: parsed.orderId,
+          productId: l.productId || null,
+          name: l.name,
+          sku: l.sku || null,
+          quantity: baseQty,
+          quantityInput: l.quantity,
+          unitOfMeasure: l.unitOfMeasure,
+          packSize,
+          unitPrice: String(l.unitPrice),
+          discount: String(l.discount),
+          taxRate: String(l.taxRate),
+          lineTotal: String(l.lineTotal),
+        };
+      }),
+    );
+
+    if (stageEffect === "commit") {
+      await applyStageEffect({
+        orgId: org.id,
+        orderId: parsed.orderId,
+        effect: "commit",
+        userId: user.id,
+        executor: tx,
+      });
+    }
+
+    const allItems = await tx
+      .select()
+      .from(schema.orderItems)
+      .where(eq(schema.orderItems.orderId, parsed.orderId));
+
+    const totals = computeTotals(
+      allItems.map((item) => ({
+        productId: item.productId ?? undefined,
+        name: item.name,
+        sku: item.sku ?? undefined,
+        quantity: item.quantityInput ?? item.quantity,
+        unitOfMeasure: (item.unitOfMeasure ?? "each") as "each" | "box",
+        packSize: item.packSize ?? 1,
+        unitPrice: parseFloat(item.unitPrice),
+        discount: parseFloat(item.discount),
+        taxRate: parseFloat(item.taxRate),
+      })),
+    );
+
+    await tx
+      .update(schema.orders)
+      .set({
+        subtotal: String(totals.subtotal),
+        taxTotal: String(totals.taxTotal),
+        discountTotal: String(totals.discountTotal),
+        total: String(totals.total),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(schema.orders.orgId, org.id), eq(schema.orders.id, parsed.orderId)));
+
+    if (stageEffect === "commit") {
+      await syncDraftInvoiceFromOrder({
+        orgId: org.id,
+        orderId: parsed.orderId,
+        executor: tx,
+      });
+    }
+  });
+
+  revalidatePath(`/orders/${parsed.orderId}`);
+  revalidatePath("/orders");
+  revalidatePath("/invoices");
+  return { id: parsed.orderId };
 }
 
 const notesSchema = z.object({

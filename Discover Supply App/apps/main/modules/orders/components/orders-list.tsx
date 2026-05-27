@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Select } from "@/components/ui/select";
+import { StageSelect } from "@/components/app/stage-select";
 import { cn, formatMoney } from "@/lib/utils";
 import { transitionOrderStage } from "../actions";
 import type { OrderStage } from "../schema";
@@ -528,6 +528,19 @@ function OrderStageControl({
   const [value, setValue] = React.useState(order.stageId ?? "");
   const [isPending, startTransition] = React.useTransition();
   const color = order.stageColor ?? "#64748b";
+  const availableStages = React.useMemo((): StageOption[] => {
+    if (!order.stageId || stages.some((stage) => stage.id === order.stageId)) return stages;
+    return [
+      ...stages,
+      {
+        id: order.stageId,
+        name: order.stageName ?? "Paid",
+        color: order.stageColor ?? "#059669",
+        effect: "mark_paid",
+        isTerminal: true,
+      },
+    ];
+  }, [order.stageColor, order.stageId, order.stageName, stages]);
 
   React.useEffect(() => {
     setValue(order.stageId ?? "");
@@ -544,15 +557,13 @@ function OrderStageControl({
     );
   }
 
-  function handleChange(event: React.ChangeEvent<HTMLSelectElement>) {
-    const toStageId = event.target.value;
+  function handleValueChange(toStageId: string) {
     const previous = value;
-    const target = stages.find((stage) => stage.id === toStageId);
+    const target = availableStages.find((stage) => stage.id === toStageId);
     if (!target || toStageId === previous) return;
 
     if (target.effect === "consume" || target.effect === "release" || target.isTerminal) {
       if (!confirm(`Move to "${target.name}"? This will ${describeStageEffect(target.effect)}.`)) {
-        setValue(previous);
         return;
       }
     }
@@ -570,22 +581,17 @@ function OrderStageControl({
   }
 
   return (
-    <span className="inline-flex min-w-32">
-      <Select
-        aria-label={`Change stage for ${order.number}`}
-        value={value}
-        onChange={handleChange}
-        disabled={isPending}
-        className="h-8 min-w-32 rounded-full py-1 pl-4 pr-8 text-xs font-semibold"
-        style={stageColorStyles(color)}
-      >
-        {stages.map((stage) => (
-          <option key={stage.id} value={stage.id}>
-            {stage.name}
-          </option>
-        ))}
-      </Select>
-    </span>
+    <StageSelect
+      aria-label={`Change stage for ${order.number}`}
+      value={value}
+      onValueChange={handleValueChange}
+      disabled={isPending}
+      triggerStyle={stageColorStyles(color)}
+      options={availableStages.map((stage) => ({
+        value: stage.id,
+        label: stage.name,
+      }))}
+    />
   );
 }
 

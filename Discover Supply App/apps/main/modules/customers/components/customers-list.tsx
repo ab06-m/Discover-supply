@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDown,
   ArrowUp,
+  ArrowUpDown,
   Columns3,
   EyeOff,
   GripVertical,
@@ -21,7 +23,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Select } from "@/components/ui/select";
 import { cn, formatMoney } from "@/lib/utils";
+import type { CustomerListSort } from "../queries";
 import { setCustomerActive } from "../actions";
 import type { Address } from "../schema";
 
@@ -155,7 +159,52 @@ function formatDate(value: Date | string | null) {
   return new Date(value).toLocaleDateString();
 }
 
-export function CustomersList({ rows, currency }: { rows: CustomerListRow[]; currency: string }) {
+const sortOptions: Array<{ value: CustomerListSort; label: string }> = [
+  { value: "latest", label: "Latest added" },
+  { value: "name", label: "Name" },
+];
+
+function CustomerSortSelect({ value }: { value: CustomerListSort }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  function onChange(event: React.ChangeEvent<HTMLSelectElement>) {
+    const params = new URLSearchParams(searchParams.toString());
+    const next = event.target.value as CustomerListSort;
+    if (next === "latest") {
+      params.delete("sort");
+    } else {
+      params.set("sort", next);
+    }
+    const query = params.toString();
+    router.push(query ? `/customers?${query}` : "/customers");
+  }
+
+  return (
+    <Select
+      value={value}
+      onChange={onChange}
+      className="h-9 w-auto min-w-[9.5rem] bg-background"
+      aria-label="Sort customers"
+    >
+      {sortOptions.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </Select>
+  );
+}
+
+export function CustomersList({
+  rows,
+  currency,
+  sort,
+}: {
+  rows: CustomerListRow[];
+  currency: string;
+  sort: CustomerListSort;
+}) {
   const [isPending, startTransition] = React.useTransition();
 
   const fields = React.useMemo<Field[]>(
@@ -421,7 +470,11 @@ export function CustomersList({ rows, currency }: { rows: CustomerListRow[]; cur
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center gap-2">
+          <ArrowUpDown className="hidden h-4 w-4 text-muted-foreground sm:block" aria-hidden="true" />
+          <CustomerSortSelect value={sort} />
+        </div>
         <Dialog>
           <DialogTrigger asChild>
             <Button type="button" variant="outline" size="sm">

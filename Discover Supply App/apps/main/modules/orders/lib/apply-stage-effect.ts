@@ -19,6 +19,58 @@ import type { StageEffect } from "../schema";
 
 type DbExecutor = Pick<typeof db, "select" | "update" | "insert">;
 
+export type OrderLineAvailability = {
+  productId: string;
+  baseQuantity: number;
+};
+
+/**
+ * Validates that tracked products have enough uncommitted stock for new/added lines.
+ * Call before inserting lines that will be committed immediately.
+ */
+export async function validateOrderLineAvailability({
+  orgId,
+  lines,
+  executor = db,
+}: {
+  orgId: string;
+  lines: OrderLineAvailability[];
+  executor?: DbExecutor;
+}) {
+  const qtyByProduct = new Map<string, number>();
+  for (const line of lines) {
+    if (!line.productId || line.baseQuantity <= 0) continue;
+    qtyByProduct.set(
+      line.productId,
+      (qtyByProduct.get(line.productId) ?? 0) + line.baseQuantity,
+    );
+  }
+  if (!qtyByProduct.size) return;
+
+  const productIds = [...qtyByProduct.keys()];
+  const products = await executor
+    .select({
+      id: schema.products.id,
+      name: schema.products.name,
+      trackStock: schema.products.trackStock,
+      onHand: schema.products.onHand,
+      committed: schema.products.committed,
+    })
+    .from(schema.products)
+    .where(and(eq(schema.products.orgId, orgId), inArray(schema.products.id, productIds)));
+
+  for (const product of products) {
+    if (!product.trackStock) continue;
+    const needed = qtyByProduct.get(product.id) ?? 0;
+    const available = Number(product.onHand) - Number(product.committed);
+    if (needed > available) {
+      throw new Error(
+        `Insufficient stock for ${product.name}. Need ${needed}, only ${Math.max(0, available)} available.`,
+      );
+    }
+  }
+}
+
 export async function applyStageEffect({
   orgId,
   orderId,
@@ -77,8 +129,21 @@ export async function applyStageEffect({
     movementRows.map((row) => [row.productId, row]),
   );
 
+  const products = await executor
+    .select({
+      id: schema.products.id,
+      trackStock: schema.products.trackStock,
+    })
+    .from(schema.products)
+    .where(and(eq(schema.products.orgId, orgId), inArray(schema.products.id, productIds)));
+
+  const productById = new Map(products.map((product) => [product.id, product]));
+
   for (const item of items) {
     if (!item.productId) continue;
+
+    const product = productById.get(item.productId);
+    if (!product?.trackStock) continue;
 
     const qty = Number(item.quantity);
     const current = movementByProductId.get(item.productId);
@@ -104,7 +169,13 @@ export async function applyStageEffect({
             eq(schema.products.id, item.productId),
             sql`${schema.products.onHand} + ${onHandDelta} >= 0`,
           )
-        : and(eq(schema.products.orgId, orgId), eq(schema.products.id, item.productId));
+        : committedDelta > 0
+          ? and(
+              eq(schema.products.orgId, orgId),
+              eq(schema.products.id, item.productId),
+              sql`${schema.products.onHand} >= ${schema.products.committed} + ${committedDelta}`,
+            )
+          : and(eq(schema.products.orgId, orgId), eq(schema.products.id, item.productId));
 
     const [updated] = await executor
       .update(schema.products)

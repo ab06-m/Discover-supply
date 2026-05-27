@@ -37,7 +37,7 @@ async function DashboardStats() {
         revenue: sql<string>`coalesce(sum(case
           when ${schema.orders.stageId} in (
             select id from order_stages
-            where org_id = ${org.id} and effect in ('consume','mark_paid')
+            where org_id = ${org.id} and effect = 'consume'
           )
           then ${schema.orders.total} else 0 end), 0)`,
       })

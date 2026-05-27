@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   List,
   Minus,
+  Plus,
   Search,
   ShoppingCart,
   Tag,
@@ -27,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { cn, formatMoney } from "@/lib/utils";
 import { lookupByBarcode } from "@/modules/inventory/actions";
 import { BarcodeScanner } from "@/modules/inventory/components/barcode-scanner";
-import { createOrder, searchOrderProducts } from "@/modules/orders/actions";
+import { appendOrderItems, createOrder } from "@/modules/orders/actions";
 import { createCustomer } from "@/modules/customers/actions";
 import { fetchSellProductsAction } from "@/modules/sell/actions";
 
@@ -81,12 +82,20 @@ type CartLine = {
   lowStockThreshold: number;
 };
 
+type EditOrderContext = {
+  id: string;
+  number: string;
+  customerId: string | null;
+  stageSlug: string;
+};
+
 type Props = {
   categories: Category[];
   customers: Customer[];
   currency: string;
   defaultLowStockThreshold: number;
   defaultTaxRate: number;
+  editOrder?: EditOrderContext | null;
   products: Product[];
 };
 
@@ -118,17 +127,23 @@ function compactName(name: string) {
   return name.length > 42 ? `${name.slice(0, 39)}...` : name;
 }
 
+function cartStorageKey(orderId: string) {
+  return `sell-add-items:${orderId}`;
+}
+
 export function SellCart({
   categories,
   customers,
   currency,
   defaultLowStockThreshold,
   defaultTaxRate,
+  editOrder = null,
   products,
 }: Props) {
   const router = useRouter();
+  const isAddingToOrder = Boolean(editOrder);
   const [isPending, startTransition] = useTransition();
-  const [customerId, setCustomerId] = useState("");
+  const [customerId, setCustomerId] = useState(editOrder?.customerId ?? "");
   const [categoryId, setCategoryId] = useState("");
   const [searchVal, setSearchVal] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -146,6 +161,7 @@ export function SellCart({
   const LIMIT = 40;
 
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [cartHydrated, setCartHydrated] = useState(!editOrder);
   const [discountOpen, setDiscountOpen] = useState(false);
   const [discount, setDiscount] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -165,6 +181,26 @@ export function SellCart({
   );
 
   const isFirstMount = useRef(true);
+
+  useEffect(() => {
+    if (!editOrder) return;
+    try {
+      const raw = sessionStorage.getItem(cartStorageKey(editOrder.id));
+      if (raw) {
+        const parsed = JSON.parse(raw) as CartLine[];
+        if (Array.isArray(parsed)) setCart(parsed);
+      }
+    } catch {
+      // Ignore invalid persisted cart data.
+    } finally {
+      setCartHydrated(true);
+    }
+  }, [editOrder]);
+
+  useEffect(() => {
+    if (!editOrder || !cartHydrated) return;
+    sessionStorage.setItem(cartStorageKey(editOrder.id), JSON.stringify(cart));
+  }, [cart, cartHydrated, editOrder]);
 
   // Debounce search query
   useEffect(() => {
@@ -334,49 +370,101 @@ export function SellCart({
   function submitSale() {
     setError(null);
     if (cart.length === 0) {
-      setError("Add at least one item before going to payment.");
+      setError(
+        isAddingToOrder
+          ? "Add at least one new item before saving to the order."
+          : "Add at least one item before going to payment.",
+      );
       return;
     }
 
     startTransition(async () => {
       try {
         const discountRatio = subtotal > 0 ? safeDiscount / subtotal : 0;
+        const payloadItems = cart.map((line) => {
+          const gross = line.unitPrice * line.quantity;
+          return {
+            productId: line.productId,
+            name: line.name,
+            sku: line.sku || undefined,
+            quantity: line.quantity,
+            unitOfMeasure: line.unitOfMeasure,
+            packSize: line.packSize,
+            unitPrice: line.unitPrice,
+            discount: +(gross * discountRatio).toFixed(2),
+            taxRate: defaultTaxRate,
+          };
+        });
+
+        if (editOrder) {
+          await appendOrderItems({
+            orderId: editOrder.id,
+            items: payloadItems,
+          });
+          sessionStorage.removeItem(cartStorageKey(editOrder.id));
+          setCart([]);
+          setDiscount(0);
+          setCartOpen(false);
+          router.push(`/orders/${editOrder.id}`);
+          return;
+        }
+
         const response = await createOrder({
           customerId: customerId || undefined,
           internalNotes: "Created from Sell cart.",
-          items: cart.map((line) => {
-            const gross = line.unitPrice * line.quantity;
-            return {
-              productId: line.productId,
-              name: line.name,
-              sku: line.sku || undefined,
-              quantity: line.quantity,
-              unitOfMeasure: line.unitOfMeasure,
-              packSize: line.packSize,
-              unitPrice: line.unitPrice,
-              discount: +(gross * discountRatio).toFixed(2),
-              taxRate: defaultTaxRate,
-            };
-          }),
+          items: payloadItems,
         });
         setCartOpen(false);
         router.push(`/orders/${response.id}`);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not create the sale.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : isAddingToOrder
+              ? "Could not add items to the order."
+              : "Could not create the sale.",
+        );
       }
     });
   }
+
+  const submitLabel = isAddingToOrder ? "Add to order" : "Go to Order";
+  const pendingLabel = isAddingToOrder ? "Saving..." : "Saving...";
 
   return (
     <div className="space-y-5">
       <div className="hidden flex-col gap-3 sm:flex sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-normal text-foreground">Sell</h1>
+          <h1 className="text-3xl font-bold tracking-normal text-foreground">
+            {isAddingToOrder ? "Add items" : "Sell"}
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Fast staff cart for walk-in sales, phone orders, and back-office checkout.
+            {isAddingToOrder
+              ? `Adding new lines to order ${editOrder?.number}. Existing items stay on the order until you save.`
+              : "Fast staff cart for walk-in sales, phone orders, and back-office checkout."}
           </p>
         </div>
       </div>
+
+      {isAddingToOrder && editOrder ? (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="relative inline-flex h-5 w-5 shrink-0">
+              <ShoppingCart className="h-5 w-5 text-primary" />
+              <Plus className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-primary text-primary-foreground" />
+            </span>
+            <span>
+              Adding items to <span className="font-semibold">{editOrder.number}</span>
+              {editOrder.stageSlug === "confirmed" ? (
+                <span className="text-muted-foreground">
+                  {" "}
+                  — new lines will be reserved in inventory when saved
+                </span>
+              ) : null}
+            </span>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
         <section className="min-w-0 space-y-4">
@@ -412,8 +500,8 @@ export function SellCart({
               onClick={submitSale}
               disabled={isPending || cart.length === 0}
               className="group inline-flex h-16 w-16 items-center justify-center rounded-2xl border bg-card text-muted-foreground shadow-card transition hover:border-emerald-400/50 hover:bg-emerald-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Go to Order"
-              title="Go to Order"
+              aria-label={submitLabel}
+              title={submitLabel}
             >
               <ClipboardList className="h-7 w-7 transition-colors group-hover:text-emerald-600 dark:group-hover:text-emerald-300" />
               <ChevronRight className="-ml-1 h-5 w-5 transition-colors group-hover:text-emerald-600 dark:group-hover:text-emerald-300" />
@@ -480,7 +568,7 @@ export function SellCart({
                   onClick={submitSale}
                   disabled={isPending || cart.length === 0}
                 >
-                  {isPending ? "Saving..." : "Go to Order"}
+                  {isPending ? pendingLabel : submitLabel}
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -643,6 +731,7 @@ export function SellCart({
                 value={customerId}
                 onChange={setCustomerId}
                 onNewCustomer={() => setNewCustomerOpen(true)}
+                disabled={isAddingToOrder}
               />
               {selectedCustomer?.paymentTerms && (
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -655,9 +744,13 @@ export function SellCart({
               {cart.length === 0 ? (
                 <div className="flex h-56 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 text-center">
                   <ShoppingCart className="h-8 w-8 text-muted-foreground" />
-                  <p className="mt-3 text-sm font-medium">Cart is empty</p>
+                  <p className="mt-3 text-sm font-medium">
+                    {isAddingToOrder ? "No new items yet" : "Cart is empty"}
+                  </p>
                   <p className="mt-1 max-w-56 text-xs text-muted-foreground">
-                    Tap product tiles or scan barcodes to build the sale.
+                    {isAddingToOrder
+                      ? "Tap products or scan barcodes to add lines to this order."
+                      : "Tap product tiles or scan barcodes to build the sale."}
                   </p>
                 </div>
               ) : (
@@ -745,6 +838,9 @@ export function SellCart({
                     setCart([]);
                     setDiscount(0);
                     setError(null);
+                    if (editOrder) {
+                      sessionStorage.removeItem(cartStorageKey(editOrder.id));
+                    }
                   }}
                   disabled={cart.length === 0 || isPending}
                   aria-label="Clear cart"
@@ -758,7 +854,7 @@ export function SellCart({
                   disabled={isPending || cart.length === 0}
                   className="bg-success text-success-foreground hover:bg-success/90"
                 >
-                  {isPending ? "Saving..." : "Go to Order"}
+                  {isPending ? pendingLabel : submitLabel}
                   <ChevronRight className="ml-2 h-5 w-5" />
                 </Button>
               </div>
@@ -780,6 +876,7 @@ export function SellCart({
                 value={customerId}
                 onChange={setCustomerId}
                 onNewCustomer={() => setNewCustomerOpen(true)}
+                disabled={isAddingToOrder}
               />
               {selectedCustomer?.paymentTerms && (
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -792,9 +889,13 @@ export function SellCart({
               {cart.length === 0 ? (
                 <div className="flex h-44 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 text-center">
                   <ShoppingCart className="h-8 w-8 text-muted-foreground" />
-                  <p className="mt-3 text-sm font-medium">Cart is empty</p>
+                  <p className="mt-3 text-sm font-medium">
+                    {isAddingToOrder ? "No new items yet" : "Cart is empty"}
+                  </p>
                   <p className="mt-1 max-w-56 text-xs text-muted-foreground">
-                    Tap product tiles or scan barcodes to build the sale.
+                    {isAddingToOrder
+                      ? "Tap products or scan barcodes to add lines to this order."
+                      : "Tap product tiles or scan barcodes to build the sale."}
                   </p>
                 </div>
               ) : (
@@ -882,6 +983,9 @@ export function SellCart({
                     setCart([]);
                     setDiscount(0);
                     setError(null);
+                    if (editOrder) {
+                      sessionStorage.removeItem(cartStorageKey(editOrder.id));
+                    }
                   }}
                   disabled={cart.length === 0 || isPending}
                   aria-label="Clear cart"
@@ -895,7 +999,7 @@ export function SellCart({
                   disabled={isPending || cart.length === 0}
                   className="bg-success text-success-foreground hover:bg-success/90"
                 >
-                  {isPending ? "Saving..." : "Go to Order"}
+                  {isPending ? pendingLabel : submitLabel}
                   <ChevronRight className="ml-2 h-5 w-5" />
                 </Button>
               </div>
@@ -941,11 +1045,13 @@ function CustomerSelector({
   value,
   onChange,
   onNewCustomer,
+  disabled = false,
 }: {
   customers: Customer[];
   value: string;
   onChange: (id: string) => void;
   onNewCustomer: () => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -992,8 +1098,12 @@ function CustomerSelector({
       {/* Trigger */}
       <button
         type="button"
-        onClick={openDropdown}
-        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        onClick={disabled ? undefined : openDropdown}
+        disabled={disabled}
+        className={cn(
+          "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+          disabled && "cursor-not-allowed opacity-70",
+        )}
       >
         <span className={cn("truncate", !selected && "text-muted-foreground")}>
           {selected
@@ -1005,7 +1115,7 @@ function CustomerSelector({
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute left-0 right-0 top-full z-[200] mt-1 overflow-hidden rounded-md border bg-popover shadow-lg">
+        <div className="absolute left-0 right-0 top-full z-[200] mt-1 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg">
           {/* Search input */}
           <div className="border-b p-2">
             <div className="relative">

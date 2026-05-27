@@ -28,6 +28,18 @@ export function BarcodeScanner({ open, onScan, onClose, continuous = false }: Pr
   const [lastCode, setLastCode] = useState<string | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
 
+  // Store callbacks in refs to avoid restarting useEffect on parent re-renders
+  const onScanRef = useRef(onScan);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!open) return;
     setError(null);
@@ -54,20 +66,27 @@ export function BarcodeScanner({ open, onScan, onClose, continuous = false }: Pr
             if (result) {
               const code = result.getText();
               setLastCode(code);
-              onScan(code);
+              onScanRef.current(code);
               if (!continuous) {
                 ctrl.stop();
-                onClose();
+                onCloseRef.current();
               }
             }
             // ignore NotFoundException — zxing fires continuously while searching
           },
         );
-        stopRef.current = () => controls?.stop();
+
+        if (cancelled) {
+          controls.stop();
+        } else {
+          stopRef.current = () => controls?.stop();
+        }
       } catch (e) {
-        setError(
-          e instanceof Error ? e.message : "Unable to start camera. Check browser permissions.",
-        );
+        if (!cancelled) {
+          setError(
+            e instanceof Error ? e.message : "Unable to start camera. Check browser permissions.",
+          );
+        }
       }
     })();
 
@@ -76,7 +95,7 @@ export function BarcodeScanner({ open, onScan, onClose, continuous = false }: Pr
       stopRef.current?.();
       stopRef.current = null;
     };
-  }, [open, continuous, onScan, onClose]);
+  }, [open, continuous]);
 
   if (!open) return null;
 

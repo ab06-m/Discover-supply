@@ -2,24 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import {
-  AlertTriangle,
-  Columns3,
-  EyeOff,
-  ImageIcon,
-  Minus,
-  Package,
-  Plus,
-  RotateCcw,
-  Settings2,
-} from "lucide-react";
+import { Columns3, Eye, EyeOff, Minus, Plus, RotateCcw, Settings2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { formatStockDisplay } from "@/modules/inventory/lib/format-stock";
 import {
   addSpot,
   assignFieldToSpot,
@@ -31,185 +20,146 @@ import {
   setSectionName,
   toggleFieldVisibility,
   type FieldId,
-  type ProductCardLayoutConfig,
+  type InvoiceCardLayoutConfig,
   type SectionId,
-} from "@/modules/inventory/lib/product-card-layout";
-import {
-  getStockStatus,
-  resolveLowStockThreshold,
-} from "@/modules/inventory/lib/stock-rules";
+} from "@/modules/invoices/lib/invoice-card-layout";
 import { cn, formatMoney } from "@/lib/utils";
-import type { ProductListRow } from "@/modules/inventory/queries";
+import {
+  CustomerInfoDialog,
+  type CustomerInfoSummary,
+} from "@/modules/customers/components/customer-info-dialog";
+
+export type InvoiceListRow = CustomerInfoSummary & {
+  id: string;
+  number: string;
+  status: string;
+  total: string;
+  amountPaid: string;
+  issueDate: Date | string;
+  dueDate: Date | string | null;
+  viewedAt: Date | string | null;
+};
 
 type Field = {
   id: FieldId;
   label: string;
-  render: (product: ProductListRow) => React.ReactNode;
+  render: (invoice: InvoiceListRow) => React.ReactNode;
 };
 
-function textValue(value: string | null | undefined) {
-  return value?.trim() ? value : "-";
-}
-
-function stockValue(product: ProductListRow, defaultLowStockThreshold: number) {
-  if (!product.trackStock) return <span className="text-muted-foreground">-</span>;
-
-  const effectiveLowStockThreshold = resolveLowStockThreshold(
-    product.lowStockThreshold,
-    defaultLowStockThreshold,
-  );
-  const stockStatus = getStockStatus(Number(product.available), effectiveLowStockThreshold);
-
-  return (
-    <span className="inline-flex items-center gap-1">
-      {stockStatus === "good" ? (
-        <Package className="h-3.5 w-3.5 text-muted-foreground" />
-      ) : (
-        <AlertTriangle
-          className={cn(
-            "h-3.5 w-3.5",
-            stockStatus === "out" ? "text-destructive" : "text-warning",
-          )}
-        />
-      )}
-      <span
-        className={cn(
-          stockStatus === "out" && "text-destructive",
-          stockStatus === "low" && "text-warning",
-        )}
-      >
-        {product.available}
-      </span>
-    </span>
-  );
-}
-
-function onHandValue(product: ProductListRow) {
-  if (!product.trackStock) return <span className="text-muted-foreground">-</span>;
-
-  return (
-    <span
-      className="inline-flex flex-col leading-tight"
-      title={formatStockDisplay(product.onHand, product.packSize, product.unit ?? "each")}
-    >
-      <span>{product.onHand}</span>
-      {(product.packSize ?? 1) > 1 ? (
-        <span className="text-[10px] text-muted-foreground">
-          {Math.floor(product.onHand / (product.packSize || 1))} case
-          {Math.floor(product.onHand / (product.packSize || 1)) === 1 ? "" : "s"}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function formatProductUnit(product: ProductListRow) {
-  return product.packSize > 1 ? `${product.unit}, case of ${product.packSize}` : product.unit;
-}
+const STATUS_STYLES: Record<string, string> = {
+  unpaid: "bg-destructive/10 text-destructive",
+  partial: "bg-warning/10 text-warning",
+  paid: "bg-success/10 text-success",
+  voided: "bg-secondary text-secondary-foreground",
+};
 
 const sectionDescriptions: Record<SectionId, string> = {
-  main: "Center row beside the product title",
+  main: "Center row beside the invoice title",
   side: "Right rail on desktop",
   footer: "Full-width row below the card",
 };
 
-export function ProductsList({
+function getDisplayStatus(status: string): "unpaid" | "partial" | "paid" | "voided" {
+  if (status === "paid") return "paid";
+  if (status === "partial") return "partial";
+  if (status === "void") return "voided";
+  return "unpaid";
+}
+
+function formatDisplayStatus(status: "unpaid" | "partial" | "paid" | "voided") {
+  return status[0].toUpperCase() + status.slice(1);
+}
+
+export function InvoicesList({
   rows,
   currency,
-  defaultLowStockThreshold,
 }: {
-  rows: ProductListRow[];
+  rows: InvoiceListRow[];
   currency: string;
-  defaultLowStockThreshold: number;
 }) {
+  const [selectedCustomer, setSelectedCustomer] = React.useState<InvoiceListRow | null>(null);
+
   const fields = React.useMemo<Field[]>(
     () => [
       {
-        id: "product",
-        label: "Product",
-        render: (product) => (
-          <div className="min-w-0">
-            <Link
-              href={`/products/${product.id}`}
-              className="line-clamp-2 pr-20 font-semibold leading-snug hover:underline"
+        id: "invoice",
+        label: "Invoice #",
+        render: (invoice) => (
+          <Link href={`/invoices/${invoice.id}`} className="inline-block font-semibold hover:underline">
+            {invoice.number}
+          </Link>
+        ),
+      },
+      {
+        id: "customer",
+        label: "Customer / store",
+        render: (invoice) =>
+          invoice.customerName ? (
+            <button
+              type="button"
+              onClick={() => setSelectedCustomer(invoice)}
+              className="min-w-0 text-left text-sm text-muted-foreground hover:underline"
             >
-              {product.name}
-            </Link>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-normal text-muted-foreground">
-              <span>SKU {product.sku ?? "-"}</span>
-              <span>{formatProductUnit(product)}</span>
-            </div>
-          </div>
+              {invoice.customerName}
+              {invoice.storeCode ? ` · ${invoice.storeCode}` : ""}
+            </button>
+          ) : (
+            <span className="text-sm text-muted-foreground">No store assigned</span>
+          ),
+      },
+      {
+        id: "viewed",
+        label: "Viewed status",
+        render: (invoice) => {
+          const isViewed = invoice.status === "viewed" || Boolean(invoice.viewedAt);
+          return (
+            <span className="inline-flex items-center gap-1.5">
+              {isViewed ? (
+                <Eye className="h-4 w-4 text-success" />
+              ) : (
+                <EyeOff className="h-4 w-4 text-destructive" />
+              )}
+              <span className="text-sm">{isViewed ? "Viewed" : "Not viewed"}</span>
+            </span>
+          );
+        },
+      },
+      {
+        id: "issued",
+        label: "Issued",
+        render: (invoice) => <span>{new Date(invoice.issueDate).toLocaleDateString()}</span>,
+      },
+      {
+        id: "due",
+        label: "Due",
+        render: (invoice) => (
+          <span>{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "-"}</span>
         ),
       },
       {
-        id: "price",
-        label: "Price",
-        render: (product) => (
-          <span className="font-medium">{formatMoney(product.price, currency)}</span>
+        id: "total",
+        label: "Total",
+        render: (invoice) => (
+          <span className="font-semibold">{formatMoney(invoice.total, currency)}</span>
         ),
       },
       {
-        id: "costPrice",
-        label: "Cost price",
-        render: (product) => <span>{formatMoney(product.cost, currency)}</span>,
-      },
-      {
-        id: "available",
-        label: "Available",
-        render: (product) => stockValue(product, defaultLowStockThreshold),
-      },
-      {
-        id: "onHand",
-        label: "On hand",
-        render: onHandValue,
-      },
-      {
-        id: "committed",
-        label: "Committed",
-        render: (product) => (
-          <span className="text-muted-foreground">{product.trackStock ? product.committed : "-"}</span>
-        ),
-      },
-      {
-        id: "itemPerformance",
-        label: "Item performance",
-        render: (product) => (
-          <span>
-            {product.soldLast30 > 0 ? `${product.soldLast30} sold` : "No sales"}
-            <span className="ml-1 text-xs text-muted-foreground">30d</span>
-          </span>
-        ),
-      },
-      {
-        id: "barcode",
-        label: "Barcode",
-        render: (product) => <span className="text-muted-foreground">{product.barcode ?? "-"}</span>,
-      },
-      {
-        id: "brand",
-        label: "Brand",
-        render: (product) => <span className="text-muted-foreground">{textValue(product.brand)}</span>,
-      },
-      {
-        id: "vendor",
-        label: "Vendor",
-        render: (product) => <span className="text-muted-foreground">{textValue(product.vendor)}</span>,
-      },
-      {
-        id: "storefront",
-        label: "Storefront",
-        render: (product) => (
-          <Badge variant={product.showInOnlineStore ? "success" : "secondary"}>
-            {product.showInOnlineStore ? "Shown" : "Hidden"}
-          </Badge>
-        ),
+        id: "balance",
+        label: "Balance",
+        render: (invoice) => {
+          const balance = parseFloat(invoice.total) - parseFloat(invoice.amountPaid);
+          return (
+            <span className={cn(balance > 0 ? "font-semibold text-warning" : "font-medium text-success")}>
+              {balance > 0 ? formatMoney(balance, currency) : "Paid"}
+            </span>
+          );
+        },
       },
     ],
-    [currency, defaultLowStockThreshold],
+    [currency],
   );
 
-  const [layout, setLayout] = React.useState<ProductCardLayoutConfig>(defaultLayout);
+  const [layout, setLayout] = React.useState<InvoiceCardLayoutConfig>(defaultLayout);
   const [storageLoaded, setStorageLoaded] = React.useState(false);
 
   React.useEffect(() => {
@@ -226,12 +176,16 @@ export function ProductsList({
   const visibleSet = React.useMemo(() => new Set(layout.visible), [layout.visible]);
   const hasVisibleCardContent = layout.visible.some((id) => fieldMap.has(id));
 
-  function resetLayout() {
-    setLayout(defaultLayout);
-  }
-
   return (
     <div className="space-y-3">
+      <CustomerInfoDialog
+        customer={selectedCustomer}
+        open={Boolean(selectedCustomer)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedCustomer(null);
+        }}
+      />
+
       <div className="flex justify-end">
         <Dialog>
           <DialogTrigger asChild>
@@ -240,14 +194,14 @@ export function ProductsList({
               Fields
             </Button>
           </DialogTrigger>
-          <DialogContent title="Edit product fields" className="max-w-4xl">
+          <DialogContent title="Edit invoice fields" className="max-w-4xl">
             <div className="border-b px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Settings2 className="h-4 w-4 text-primary" />
                   Arrange sections, spots, and visible fields
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={resetLayout}>
+                <Button type="button" variant="outline" size="sm" onClick={() => setLayout(defaultLayout)}>
                   <RotateCcw className="mr-2 h-4 w-4" />
                   Reset
                 </Button>
@@ -283,8 +237,8 @@ export function ProductsList({
                 <div className="mt-3 space-y-2">
                   {fields.map((field) => {
                     const isVisible = visibleSet.has(field.id);
-                    const assignedSection = layout.sections.find((section) =>
-                      section.assignments.includes(field.id),
+                    const assignedSection = layout.sections.find((entry) =>
+                      entry.assignments.includes(field.id),
                     );
 
                     return (
@@ -324,24 +278,17 @@ export function ProductsList({
 
       {hasVisibleCardContent ? (
         <div className="grid gap-3">
-          {rows.map((product) => (
-            <ProductCard
-              key={product.id}
+          {rows.map((invoice) => (
+            <InvoiceCard
+              key={invoice.id}
               fieldMap={fieldMap}
               layout={layout}
-              product={product}
+              invoice={invoice}
               visibleSet={visibleSet}
             />
           ))}
         </div>
-      ) : (
-        <Card>
-          <div className="flex min-h-48 flex-col items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground">
-            <EyeOff className="h-5 w-5" />
-            <span>No visible fields</span>
-          </div>
-        </Card>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -354,8 +301,8 @@ function SectionEditor({
   onAddSpot,
   onRemoveSpot,
 }: {
-  section: ProductCardLayoutConfig["sections"][number];
-  layout: ProductCardLayoutConfig;
+  section: InvoiceCardLayoutConfig["sections"][number];
+  layout: InvoiceCardLayoutConfig;
   onNameChange: (name: string) => void;
   onAssign: (spotIndex: number, fieldId: FieldId | null) => void;
   onAddSpot: () => void;
@@ -448,22 +395,23 @@ function SectionEditor({
   );
 }
 
-function ProductCard({
+function InvoiceCard({
   fieldMap,
   layout,
-  product,
+  invoice,
   visibleSet,
 }: {
   fieldMap: Map<FieldId, Field>;
-  layout: ProductCardLayoutConfig;
-  product: ProductListRow;
+  layout: InvoiceCardLayoutConfig;
+  invoice: InvoiceListRow;
   visibleSet: Set<FieldId>;
 }) {
   const mainSection = layout.sections.find((section) => section.id === "main");
   const sideSection = layout.sections.find((section) => section.id === "side");
   const footerSection = layout.sections.find((section) => section.id === "footer");
 
-  const productField = visibleSet.has("product") ? fieldMap.get("product") : undefined;
+  const invoiceField = visibleSet.has("invoice") ? fieldMap.get("invoice") : undefined;
+  const customerField = visibleSet.has("customer") ? fieldMap.get("customer") : undefined;
 
   const resolveSpotFields = (sectionId: SectionId) => {
     const section = layout.sections.find((entry) => entry.id === sectionId);
@@ -472,6 +420,7 @@ function ProductCard({
     return section.assignments
       .map((fieldId) => {
         if (!fieldId || !visibleSet.has(fieldId)) return null;
+        if (fieldId === "invoice" || fieldId === "customer") return null;
         return fieldMap.get(fieldId) ?? null;
       })
       .filter((field): field is Field => Boolean(field));
@@ -480,46 +429,58 @@ function ProductCard({
   const mainFields = resolveSpotFields("main");
   const sideFields = resolveSpotFields("side");
   const footerFields = resolveSpotFields("footer");
-
   const showSide = sideFields.length > 0;
+
+  const displayStatus = getDisplayStatus(invoice.status);
 
   return (
     <Card className="overflow-hidden shadow-card transition-shadow hover:shadow-card-hover">
       <div
         className={cn(
-          "grid min-h-28 grid-cols-[5rem_minmax(0,1fr)] gap-3 p-3",
-          showSide ? "sm:grid-cols-[5.5rem_minmax(0,1fr)_9rem]" : "sm:grid-cols-[5.5rem_minmax(0,1fr)]",
-          "sm:items-stretch",
+          "grid gap-3 p-3",
+          showSide
+            ? "sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-stretch"
+            : "sm:grid-cols-[minmax(0,1fr)]",
         )}
       >
-        <ProductImage product={product} />
-
         <div className="relative min-w-0 space-y-3">
           <Badge
-            variant={product.isActive ? "success" : "secondary"}
-            className="absolute right-0 top-0"
+            variant="secondary"
+            className={cn(
+              "absolute right-0 top-0 text-[10px] uppercase",
+              STATUS_STYLES[displayStatus] ?? "bg-muted text-muted-foreground",
+            )}
           >
-            {product.isActive ? "Active" : "Inactive"}
+            {formatDisplayStatus(displayStatus)}
           </Badge>
 
-          {productField ? (
-            <ProductField field={productField} product={product} emphasis hideLabel />
+          {invoiceField || customerField ? (
+            <div className="min-w-0 pr-20">
+              {invoiceField ? (
+                <InvoiceField field={invoiceField} invoice={invoice} emphasis hideLabel />
+              ) : null}
+              {customerField ? (
+                <div className={invoiceField ? "mt-1" : undefined}>
+                  <InvoiceField field={customerField} invoice={invoice} hideLabel />
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
           {mainFields.length && mainSection ? (
             <CardSectionGroup name={mainSection.name} horizontal>
               {mainFields.map((field) => (
-                <ProductField key={field.id} field={field} product={product} />
+                <InvoiceField key={field.id} field={field} invoice={invoice} />
               ))}
             </CardSectionGroup>
           ) : null}
         </div>
 
         {showSide && sideSection ? (
-          <div className="col-span-2 border-t pt-3 sm:col-span-1 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+          <div className="border-t pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
             <CardSectionGroup name={sideSection.name}>
               {sideFields.map((field) => (
-                <ProductField key={field.id} field={field} product={product} compact />
+                <InvoiceField key={field.id} field={field} invoice={invoice} compact />
               ))}
             </CardSectionGroup>
           </div>
@@ -530,7 +491,7 @@ function ProductCard({
         <div className="border-t bg-muted/20 p-3">
           <CardSectionGroup name={footerSection.name} horizontal>
             {footerFields.map((field) => (
-              <ProductField key={field.id} field={field} product={product} compact />
+              <InvoiceField key={field.id} field={field} invoice={invoice} compact />
             ))}
           </CardSectionGroup>
         </div>
@@ -566,28 +527,15 @@ function CardSectionGroup({
   );
 }
 
-function ProductImage({ product }: { product: ProductListRow }) {
-  return (
-    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted text-muted-foreground sm:h-[5.5rem] sm:w-[5.5rem]">
-      {product.imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <ImageIcon className="h-6 w-6" />
-      )}
-    </div>
-  );
-}
-
-function ProductField({
+function InvoiceField({
   field,
-  product,
+  invoice,
   emphasis = false,
   hideLabel = false,
   compact = false,
 }: {
   field: Field;
-  product: ProductListRow;
+  invoice: InvoiceListRow;
   emphasis?: boolean;
   hideLabel?: boolean;
   compact?: boolean;
@@ -612,7 +560,7 @@ function ProductField({
           emphasis ? "font-semibold leading-snug" : "truncate",
         )}
       >
-        {field.render(product)}
+        {field.render(invoice)}
       </div>
     </div>
   );

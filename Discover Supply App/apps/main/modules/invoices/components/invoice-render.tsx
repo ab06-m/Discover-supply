@@ -337,7 +337,10 @@ function BoldHeader({
           <div className="mt-1 text-4xl font-bold tracking-tight">{invoice.number}</div>
           <div
             className="mt-4 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase text-slate-950"
-            style={{ backgroundColor: accent }}
+            style={{
+              backgroundColor:
+                invoice.status.trim().toLowerCase() === "paid" ? "#22c55e" : accent,
+            }}
           >
             {invoice.status}
           </div>

@@ -22,6 +22,5 @@ export const DEFAULT_STAGES: StageSeed[] = [
   { slug: "confirmed", name: "Confirmed", color: "#3b82f6", sortOrder: 20, effect: "commit" },
   { slug: "packed", name: "Packed", color: "#8b5cf6", sortOrder: 30, effect: "none" },
   { slug: "delivered", name: "Delivered", color: "#10b981", sortOrder: 40, effect: "consume" },
-  { slug: "paid", name: "Paid", color: "#059669", sortOrder: 50, effect: "mark_paid", isTerminal: true },
   { slug: "cancelled", name: "Cancelled", color: "#ef4444", sortOrder: 99, effect: "release", isTerminal: true },
 ];
